@@ -1985,26 +1985,6 @@
             document.getElementById('btn-clear-all-saves')?.addEventListener('click', () => this.clearAllSaves());
             document.getElementById('btn-import-save')?.addEventListener('click', () => document.getElementById('import-file-input')?.click());
             document.getElementById('import-file-input')?.addEventListener('change', (e) => this.handleFileImport(e));
-            // 新增：为自动存档复选框绑定监听
-            const autoSaveCheckbox = document.getElementById('auto-save-checkbox');
-            if (autoSaveCheckbox) {
-                autoSaveCheckbox.addEventListener('click', (e) => {
-                    // 阻止默认行为和事件冒泡，确保逻辑完全由我们控制
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    this.isAutoSaveEnabled = !this.isAutoSaveEnabled;
-                    autoSaveCheckbox.checked = this.isAutoSaveEnabled; // 手动更新UI
-                    this.saveAutoSaveState();
-                    this.showTemporaryMessage(`自动存档已${this.isAutoSaveEnabled ? '开启' : '关闭'}`);
-
-                    if (this.isAutoSaveEnabled) {
-                        this.startAutoSavePolling();
-                    } else {
-                        this.stopAutoSavePolling();
-                    }
-                });
-            }
             // 时间线备份/恢复事件监听器已移除，功能已集成到存档系统中
  
               // 为写入世界书按钮绑定监听器
@@ -5117,6 +5097,20 @@
             // 使用克隆节点的方式来确保每次都绑定新的、干净的事件监听器
             const newContainer = container.cloneNode(true);
             container.parentNode.replaceChild(newContainer, container);
+
+            const autoSaveCheckbox = newContainer.querySelector('#auto-save-checkbox');
+            if (autoSaveCheckbox) {
+              autoSaveCheckbox.addEventListener('change', (e) => {
+                this.isAutoSaveEnabled = e.target.checked;
+                this.saveAutoSaveState();
+                this.showTemporaryMessage(`自动存档已${this.isAutoSaveEnabled ? '开启' : '关闭'}`);
+                if (this.isAutoSaveEnabled) {
+                  this.startAutoSavePolling();
+                } else {
+                  this.stopAutoSavePolling();
+                }
+              });
+            }
 
             console.log('[归墟存档] 绑定存档按钮事件监听器');
             newContainer.addEventListener('click', (e) => {
