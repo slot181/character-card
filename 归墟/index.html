@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<!-- 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>归墟 - 宿命轮回</title>
+  <link rel="stylesheet" href="guixu.css" />
+</head>
+<body>
+  <!-- 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享 -->
+  <div class="guixu-root-container">
+    <!-- 视图切换按钮 -->
+    <button id="view-toggle-btn" class="view-toggle-btn" title="切换视图">📱</button>
+
+    <div class="game-container">
+      <!-- 顶部状态栏 -->
+      <div class="top-status">
+        <div class="status-item">
+          <div class="status-label">境界</div>
+          <div id="val-jingjie" class="status-value">...</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">当前纪年</div>
+          <div id="val-jinian" class="status-value">...</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">归墟充能</div>
+          <div id="val-guixu-charge-text" class="status-value">...%</div>
+          <div id="bar-guixu-charge" class="guixu-charge">
+            <div class="guixu-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 左侧角色面板 -->
+      <div class="character-panel">
+        <div class="panel-section">
+          <div class="section-title">核心属性 <span style="font-size: 10px; color: #8b7355">(当前/上限)</span></div>
+          <div class="attributes-list">
+            <div class="attribute-item">
+              <span class="attribute-name">法力</span><span id="attr-fali" class="attribute-value">...</span>
+            </div>
+            <div class="attribute-item">
+              <span class="attribute-name">神海</span><span id="attr-shenhai" class="attribute-value">...</span>
+            </div>
+            <div class="attribute-item">
+              <span class="attribute-name">道心</span><span id="attr-daoxin" class="attribute-value">...</span>
+            </div>
+            <div class="attribute-item">
+              <span class="attribute-name">空速</span><span id="attr-kongsu" class="attribute-value">...</span>
+            </div>
+            <div class="attribute-item">
+              <span class="attribute-name">气运</span><span id="attr-qiyun" class="attribute-value">...</span>
+            </div>
+            <div class="attribute-item">
+              <span class="attribute-name">生理年龄</span><span id="attr-shengli" class="attribute-value">...</span>
+            </div>
+            <div class="attribute-item">
+              <span class="attribute-name">心理年龄</span><span id="attr-xinli" class="attribute-value">...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <div class="section-title">天赋灵根</div>
+          <div id="talent-linggen-list" class="attributes-list">
+            <!-- 天赋和灵根动态填充 -->
+          </div>
+        </div>
+
+        <div class="panel-section">
+          <div class="section-title">当前装备</div>
+          <div class="equipment-grid">
+            <div id="equip-wuqi" class="equipment-slot">武器</div>
+            <div id="equip-fangju" class="equipment-slot">防具</div>
+            <div id="equip-shipin" class="equipment-slot">饰品</div>
+            <div id="equip-fabao1" class="equipment-slot">法宝</div>
+            <div id="equip-zhuxiuGongfa" class="equipment-slot">主修功法</div>
+            <div id="equip-fuxiuXinfa" class="equipment-slot">辅修心法</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中央内容区 -->
+      <div class="main-content">
+        <div id="game-text-display" class="game-text-container">
+          <gametxt> 欢迎来到《归墟》的世界。你的宿命，由此开始。 </gametxt>
+        </div>
+      </div>
+
+      <!-- 右侧交互面板 -->
+      <div class="interaction-panel">
+        <button id="btn-inventory" class="interaction-btn">背包</button>
+        <button id="btn-relationships" class="interaction-btn">人物关系</button>
+        <button id="btn-command-center" class="interaction-btn">指令中心</button>
+        <button id="btn-character-details" class="interaction-btn">角色详情</button>
+        <button id="btn-guixu-system" class="interaction-btn">归墟系统</button>
+        <button id="btn-show-extracted" class="interaction-btn">查看提取内容</button>
+        <button id="btn-save-load-manager" class="interaction-btn">存档/读档</button>
+
+        <!-- 世界书控制 -->
+        <div id="world-book-controls" class="panel-section" style="padding: 8px; margin-top: 10px;">
+          <div class="section-title" style="font-size: 11px; margin-bottom: 6px;">世界书控制</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label for="unified-index-input" style="font-size: 11px; color: #8b7355;">读写序号:</label>
+              <input type="number" id="unified-index-input" value="1" min="1"
+                     style="width: 60px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 4px; font-size: 12px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input type="checkbox" id="auto-toggle-lorebook-checkbox" style="cursor: pointer;">
+              <label for="auto-toggle-lorebook-checkbox" class="auto-write-label" style="font-size: 11px;">自动开关世界书</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 世界线回顾 -->
+        <div class="world-line-section">
+          <div class="world-line-title">世界线回顾</div>
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <button id="btn-view-journey-main" class="interaction-btn primary-btn" style="flex-grow: 1; white-space: nowrap;">本世历程</button>
+            <button id="btn-view-past-lives-main" class="interaction-btn primary-btn" style="flex-grow: 1; white-space: nowrap;">往世涟漪</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部状态与快速发送 -->
+      <div id="bottom-status-container" class="bottom-status">
+        <div id="status-effects-wrapper" style="display: flex; gap: 8px; overflow-x: auto">
+          <div class="status-effect">
+            <div class="effect-icon"></div>
+            <span>当前无状态效果</span>
+          </div>
+        </div>
+        <div class="quick-send-container">
+          <button id="btn-quick-commands" class="interaction-btn" style="padding: 5px 12px">当前指令</button>
+          <textarea id="quick-send-input" class="quick-send-input" placeholder="请在此输入回复..."></textarea>
+          <button id="btn-quick-send" class="interaction-btn" style="padding: 5px 12px">发送</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 背包模态 -->
+    <div id="inventory-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">我的背包</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body"><!-- 动态填充 --></div>
+      </div>
+    </div>
+
+    <!-- 人物关系模态 -->
+    <div id="relationships-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">人物关系</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body"><!-- 动态填充 --></div>
+      </div>
+    </div>
+
+    <!-- 历史回顾模态（本世历程/往世涟漪共用） -->
+    <div id="history-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="history-modal-title" class="modal-title">历史回顾</h2>
+          <div id="history-modal-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;"></div>
+          <button class="modal-close-btn" style="margin-left: 15px;">&times;</button>
+        </div>
+        <div id="history-modal-body" class="modal-body"><!-- 动态填充 --></div>
+      </div>
+    </div>
+
+    <!-- 指令中心模态 -->
+    <div id="command-center-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">指令中心</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body"><!-- 动态填充 --></div>
+        <div class="command-center-footer">
+          <button id="btn-refresh-storage" class="interaction-btn">刷新缓存</button>
+          <div>
+            <button id="btn-clear-commands" class="interaction-btn">清空指令</button>
+            <button id="btn-execute-commands" class="interaction-btn primary-btn" style="margin-left: 10px">执行指令</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 提取内容查看模态 -->
+    <div id="extracted-content-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">最后一次提取的AI内容</h2>
+          <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;"></div>
+          <button class="modal-close-btn" style="margin-left: 15px;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="panel-section">
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
+              <span>本世历程</span>
+              <button id="btn-write-journey" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+            </div>
+            <pre id="extracted-journey" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+          </div>
+
+          <div class="panel-section">
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
+              <span>往世涟漪</span>
+              <button id="btn-write-past-lives" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+            </div>
+            <pre id="extracted-past-lives" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+          </div>
+
+          <div class="panel-section">
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
+              <span>小说模式</span>
+              <button id="btn-write-novel-mode" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+            </div>
+            <pre id="extracted-novel-mode" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">小说模式已关闭</pre>
+          </div>
+
+          <div class="panel-section">
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
+              <span>提取角色</span>
+              <button id="btn-write-character-card" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+            </div>
+            <pre id="extracted-character-card" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+          </div>
+
+          <div class="auto-write-section">
+            <input type="checkbox" id="novel-mode-enabled-checkbox" />
+            <label for="novel-mode-enabled-checkbox" class="auto-write-label">开启小说模式</label>
+            <input type="checkbox" id="auto-write-checkbox" checked style="margin-left: 20px" />
+            <label for="auto-write-checkbox" class="auto-write-label">自动写入历程/涟漪</label>
+          </div>
+
+          <details class="panel-section" style="margin-top: 15px">
+            <summary class="section-title" style="cursor: pointer; list-style: none">
+              <span>本次变量改变</span>
+            </summary>
+            <pre id="extracted-variable-changes" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <!-- 角色详情模态 -->
+    <div id="character-details-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">角色详情</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body"><!-- 动态填充 --></div>
+      </div>
+    </div>
+
+    <!-- 归墟系统模态 -->
+    <div id="guixu-system-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">归墟系统</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body"><!-- 动态填充 --></div>
+      </div>
+    </div>
+
+    <!-- 装备详情悬浮提示框 -->
+    <div id="equipment-tooltip"></div>
+
+    <!-- 自定义确认模态框 -->
+    <div id="custom-confirm-modal" class="modal-overlay">
+      <div class="modal-content confirm-modal-content">
+        <div id="custom-confirm-message" class="confirm-modal-message"></div>
+        <div class="confirm-modal-buttons">
+          <button id="custom-confirm-btn-ok" class="interaction-btn primary-btn">确认</button>
+          <button id="custom-confirm-btn-cancel" class="interaction-btn">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 快速指令弹出菜单 -->
+    <div id="quick-command-popup"></div>
+
+    <!-- 存档/读档管理模态窗口 -->
+    <div id="save-load-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">存档管理</h2>
+          <div style="display: flex; gap: 10px; margin-left: auto;">
+            <button id="btn-import-save" class="interaction-btn">导入存档</button>
+            <button id="btn-clear-all-saves" class="clear-saves-btn">清除所有存档</button>
+          </div>
+          <button class="modal-close-btn" style="margin-left: 15px;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="auto-save-section">
+            <div class="auto-save-title">自动存档</div>
+            <div class="auto-save-toggle">
+              <label for="auto-save-checkbox">开启自动存档</label>
+              <input type="checkbox" id="auto-save-checkbox" />
+            </div>
+          </div>
+          <div id="auto-save-slot-container" style="margin-bottom: 15px;"></div>
+          <h3 style="font-size: 14px; color: #8b7355; margin-top: 20px; margin-bottom: 10px; border-top: 1px solid rgba(201, 170, 113, 0.3); padding-top: 15px;">手动存档</h3>
+          <div id="save-slots-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 自动化系统修剪模态 -->
+    <div id="trim-journey-modal" class="modal-overlay">
+      <div class="modal-content" style="width: 500px; height: auto;">
+        <div class="modal-header">
+          <h2 class="modal-title">自动化系统修剪</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+          <p style="color: #a09c91; font-size: 14px; margin-bottom: 20px;">
+            此功能将移除“本世历程”中除最近两个事件外的所有“自动化系统”内容，以优化性能和减少干扰。
+          </p>
+          <div class="panel-section">
+            <div class="section-title">修剪选项</div>
+            <div class="attributes-list" style="padding: 10px;">
+              <div class="attribute-item">
+                <span class="attribute-name">读取/写入序号</span>
+                <input type="number" id="trim-journey-index-input" value="1" min="1"
+                  style="width: 80px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 4px; font-size: 12px;">
+              </div>
+            </div>
+          </div>
+          <div class="confirm-modal-buttons" style="margin-top: 20px;">
+            <button id="btn-confirm-trim" class="interaction-btn primary-btn">确认修剪</button>
+            <button id="btn-cancel-trim" class="interaction-btn">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 文件导入隐藏input -->
+    <input type="file" id="import-file-input" style="display: none;" accept=".json" />
+  </div>
+
+  <script src="guixu.js"></script>
+</body>
+</html>
