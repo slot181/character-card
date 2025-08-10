@@ -63,43 +63,36 @@
       isAutoSaveEnabled: false, // 新增：自动存档状态
       autoSaveIntervalId: null, // 新增：自动存档计时器ID
       isAutoTrimEnabled: false, // 新增：自动修剪状态
-      // --- 新增：处理所有动作的核心函数 ---
-      waitingMessages: [
-        '呜呜呜呜伟大的梦星大人啊，请给你虔诚的信徒{{user}}回复吧......',
-        '梦星大人，我们敬爱你口牙！！请给我回复吧！！',
-        '梦星大人正在回应你的请求，七个工作日给你回复',
-        '正在向伟大梦星祈祷......呜呜呜你快一点好不好'
-      ],
-
       showWaitingMessage() {
+        const { h, $ } = GuixuDOM;
         this.hideWaitingMessage(); // Ensure only one is visible
-        const message = this.waitingMessages[Math.floor(Math.random() * this.waitingMessages.length)];
-        const msgElement = document.createElement('div');
-        msgElement.id = 'waiting-popup';
-        msgElement.className = 'waiting-popup';
-        // 更新HTML结构以包含spinner
-        msgElement.innerHTML = `
-          <div class="waiting-spinner"></div>
-          <span>${message}</span>
-        `;
-        const container = document.querySelector('.guixu-root-container');
+        const message = GuixuConstants.WAITING_MESSAGES[Math.floor(Math.random() * GuixuConstants.WAITING_MESSAGES.length)];
+        
+        const msgElement = h('div', { id: 'waiting-popup', className: 'waiting-popup' }, [
+          h('div', { className: 'waiting-spinner' }),
+          h('span', {}, [message])
+        ]);
+
+        const container = $('.guixu-root-container');
         if (container) {
             container.appendChild(msgElement);
         }
       },
 
       hideWaitingMessage() {
-          const existingMsg = document.getElementById('waiting-popup');
-          if (existingMsg) {
-              existingMsg.remove();
-          }
+        const { $ } = GuixuDOM;
+        const existingMsg = $('#waiting-popup');
+        if (existingMsg) {
+            existingMsg.remove();
+        }
       },
 
       // --- 新增：视图切换核心功能 ---
       toggleViewMode() {
+        const { $ } = GuixuDOM;
         this.isMobileView = !this.isMobileView;
-        const container = document.querySelector('.guixu-root-container');
-        const btn = document.getElementById('view-toggle-btn');
+        const container = $('.guixu-root-container');
+        const btn = $('#view-toggle-btn');
         if (container && btn) {
           if (this.isMobileView) {
             container.classList.add('mobile-view');
@@ -123,13 +116,14 @@
       },
 
       loadViewMode() {
+        const { $ } = GuixuDOM;
         try {
           const savedMode = localStorage.getItem('guixu_view_mode');
           // 仅当保存的模式为 'mobile' 时，才在加载时切换到移动视图
           if (savedMode === 'mobile') {
             this.isMobileView = true; // 设置初始状态
-            const container = document.querySelector('.guixu-root-container');
-            const btn = document.getElementById('view-toggle-btn');
+            const container = $('.guixu-root-container');
+            const btn = $('#view-toggle-btn');
             if (container && btn) {
               container.classList.add('mobile-view');
               btn.textContent = '💻';
@@ -186,40 +180,10 @@
       },
 
       // --- Data Handling ---
-      SafeGetValue(obj, path, defaultValue = 'N/A') {
-        let keys = Array.isArray(path) ? path : path.split('.');
-        let current = obj;
-        for (let i = 0; i < keys.length; i++) {
-          if (
-            current === undefined ||
-            current === null ||
-            typeof current !== 'object' ||
-            !current.hasOwnProperty(keys[i])
-          ) {
-            return defaultValue;
-          }
-          current = current[keys[i]];
-        }
-        if (current === undefined || current === null) {
-          return defaultValue;
-        }
-        if (Array.isArray(current)) {
-          if (current.length > 0) {
-            const actualValue = current[0];
-            if (typeof actualValue === 'boolean') return actualValue;
-            return String(actualValue);
-          } else {
-            return defaultValue;
-          }
-        }
-        if (typeof current === 'boolean') return current;
-        return String(current);
-      },
-
       async updateDynamicData() {
         try {
           // 加载核心mvu数据
-          const messages = await getChatMessages(getCurrentMessageId());
+          const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
           if (messages && messages.length > 0 && messages[0].data) {
             // 缓存完整的 mvu 状态，而不仅仅是 stat_data
             this.currentMvuState = messages[0].data;
@@ -238,12 +202,13 @@
 
       // 新增：统一的UI渲染函数
       renderUI(data) {
+        const { $, $$ } = GuixuDOM;
         if (!data) {
           console.warn('RenderUI 调用失败：没有提供数据。');
           return;
         }
         const updateText = (id, value, style = '') => {
-          const el = document.getElementById(id);
+          const el = $(`#${id}`);
           if (el) {
             el.innerText = value;
             if (style) {
@@ -252,19 +217,19 @@
           }
         };
 
-        // BUGFIX: Per the variable definition, the actual value is the first element of the array.
-        const jingjieValue = this.SafeGetValue(data, '当前境界.0', '...');
-        const match = jingjieValue.match(/^(\S{2})/);
-        const jingjieTier = match ? match[1] : '';
-        const jingjieStyle = this.getTierStyle(jingjieTier);
-        updateText('val-jingjie', jingjieValue, jingjieStyle);
-        updateText('val-jinian', this.SafeGetValue(data, '当前时间纪年'));
-        const charge = this.SafeGetValue(data, '归墟充能时间', '0');
-        updateText('val-guixu-charge-text', `${charge}%`);
-        
-        // **问题2修复**: 直接设置填充元素的宽度，而不是通过CSS变量
-        const chargeFill = document.querySelector('#bar-guixu-charge .guixu-fill');
-        if (chargeFill) chargeFill.style.width = `${charge}%`;
+      // BUGFIX: Per the variable definition, the actual value is the first element of the array.
+      const jingjieValue = GuixuHelpers.SafeGetValue(data, '当前境界.0', '...');
+      const match = jingjieValue.match(/^(\S{2})/);
+      const jingjieTier = match ? match[1] : '';
+      const jingjieStyle = GuixuHelpers.getTierStyle(jingjieTier);
+      updateText('val-jingjie', jingjieValue, jingjieStyle);
+      updateText('val-jinian', GuixuHelpers.SafeGetValue(data, '当前时间纪年'));
+      const charge = GuixuHelpers.SafeGetValue(data, '归墟充能时间', '0');
+      updateText('val-guixu-charge-text', `${charge}%`);
+      
+      // **问题2修复**: 直接设置填充元素的宽度，而不是通过CSS变量
+      const chargeFill = $('#bar-guixu-charge .guixu-fill');
+      if (chargeFill) chargeFill.style.width = `${charge}%`;
 
         // 此处不再需要填充 this.baseAttributes，因为 updateDisplayedAttributes 会直接从 stat_data 读取
         
@@ -272,21 +237,21 @@
         this.loadEquipmentFromMVU(data);
         this.updateDisplayedAttributes(); // 核心渲染函数
 
-        const statusWrapper = document.getElementById('status-effects-wrapper');
+        const statusWrapper = $('#status-effects-wrapper');
         if (statusWrapper) {
-          const statuses = _.get(data, '当前状态.0', []);
-          if (Array.isArray(statuses) && statuses.length > 0 && statuses[0] !== '$__META_EXTENSIBLE__$') {
-            statusWrapper.innerHTML = statuses
-              .map(s => {
-                let statusText = '未知状态';
-                if (typeof s === 'string') {
-                  statusText = s;
-                } else if (typeof s === 'object' && s !== null) {
-                  statusText = this.SafeGetValue(s, 'name', '未知状态');
-                }
-                return `<div class="status-effect"><div class="effect-icon"></div><span>${statusText}</span></div>`;
-              })
-              .join('');
+      const statuses = GuixuAPI.lodash.get(data, '当前状态.0', []);
+      if (Array.isArray(statuses) && statuses.length > 0 && statuses[0] !== '$__META_EXTENSIBLE__$') {
+        statusWrapper.innerHTML = statuses
+          .map(s => {
+            let statusText = '未知状态';
+            if (typeof s === 'string') {
+              statusText = s;
+            } else if (typeof s === 'object' && s !== null) {
+              statusText = GuixuHelpers.SafeGetValue(s, 'name', '未知状态');
+            }
+            return `<div class="status-effect"><div class="effect-icon"></div><span>${statusText}</span></div>`;
+          })
+          .join('');
           } else {
             statusWrapper.innerHTML =
               '<div class="status-effect"><div class="effect-icon"></div><span>当前无状态效果</span></div>';
@@ -296,30 +261,26 @@
 
       // --- Event Listeners for Buttons and Modals ---
       bindStaticListeners() {
-        if (this.listenersBound) return; // 如果已经绑定过，则直接返回
+        const { $, $$ } = GuixuDOM;
+        if (this.listenersBound) return;
 
-        // 新增：为视图切换按钮绑定监听器
-        document.getElementById('view-toggle-btn')?.addEventListener('click', () => this.toggleViewMode());
+        $('#view-toggle-btn')?.addEventListener('click', () => this.toggleViewMode());
         
-        // 新增：为世界书序号输入框绑定监听
-        // 新增：为统一的序号输入框绑定监听
-        document.getElementById('unified-index-input')?.addEventListener('change', (e) => {
+        $('#unified-index-input')?.addEventListener('change', (e) => {
             const newIndex = parseInt(e.target.value, 10);
             if (!isNaN(newIndex) && newIndex > 0) {
                 this.unifiedIndex = newIndex;
                 this.saveUnifiedIndex();
                 this.showTemporaryMessage(`世界书读写序号已更新为 ${newIndex}`);
-                // 如果自动开关是开启的，立即更新启用的条目
                 if (this.isAutoToggleLorebookEnabled) {
                     this.startAutoTogglePolling();
                 }
             } else {
-                e.target.value = this.unifiedIndex; // 如果输入无效，则恢复
+                e.target.value = this.unifiedIndex;
             }
         });
 
-        // 新增：为自动开关世界书复选框绑定监听
-        document.getElementById('auto-toggle-lorebook-checkbox')?.addEventListener('change', (e) => {
+        $('#auto-toggle-lorebook-checkbox')?.addEventListener('change', (e) => {
             this.isAutoToggleLorebookEnabled = e.target.checked;
             this.saveAutoToggleState();
             this.showTemporaryMessage(`自动开关世界书已${this.isAutoToggleLorebookEnabled ? '开启' : '关闭'}`);
@@ -330,23 +291,20 @@
             }
         });
 
-        document.getElementById('btn-inventory')?.addEventListener('click', () => this.showInventory());
-        document.getElementById('btn-relationships')?.addEventListener('click', () => this.showRelationships());
-        document.getElementById('btn-command-center')?.addEventListener('click', () => this.showCommandCenter());
-        document
-          .getElementById('btn-character-details')
-          ?.addEventListener('click', () => this.showCharacterDetails());
-        document.getElementById('btn-guixu-system')?.addEventListener('click', () => this.showGuixuSystem());
-        document.getElementById('btn-show-extracted')?.addEventListener('click', () => this.showExtractedContent());
-        // 主界面的世界线回顾按钮
-        document.getElementById('btn-view-journey-main')?.addEventListener('click', () => this.showJourney());
-        document.getElementById('btn-view-past-lives-main')?.addEventListener('click', () => this.showPastLives());
-        document.getElementById('btn-save-load-manager')?.addEventListener('click', () => this.showSaveLoadManager());
-        document.getElementById('btn-clear-all-saves')?.addEventListener('click', () => this.clearAllSaves());
-        document.getElementById('btn-import-save')?.addEventListener('click', () => document.getElementById('import-file-input')?.click());
-        document.getElementById('import-file-input')?.addEventListener('change', (e) => this.handleFileImport(e));
-        // 新增：为自动存档复选框绑定监听
-        document.getElementById('auto-save-checkbox')?.addEventListener('change', (e) => {
+        $('#btn-inventory')?.addEventListener('click', () => this.showInventory());
+        $('#btn-relationships')?.addEventListener('click', () => this.showRelationships());
+        $('#btn-command-center')?.addEventListener('click', () => this.showCommandCenter());
+        $('#btn-character-details')?.addEventListener('click', () => this.showCharacterDetails());
+        $('#btn-guixu-system')?.addEventListener('click', () => this.showGuixuSystem());
+        $('#btn-show-extracted')?.addEventListener('click', () => this.showExtractedContent());
+        $('#btn-view-journey-main')?.addEventListener('click', () => this.showJourney());
+        $('#btn-view-past-lives-main')?.addEventListener('click', () => this.showPastLives());
+        $('#btn-save-load-manager')?.addEventListener('click', () => this.showSaveLoadManager());
+        $('#btn-clear-all-saves')?.addEventListener('click', () => this.clearAllSaves());
+        $('#btn-import-save')?.addEventListener('click', () => $('#import-file-input')?.click());
+        $('#import-file-input')?.addEventListener('change', (e) => this.handleFileImport(e));
+        
+        $('#auto-save-checkbox')?.addEventListener('change', (e) => {
             this.isAutoSaveEnabled = e.target.checked;
             this.saveAutoSaveState();
             this.showTemporaryMessage(`自动存档已${this.isAutoSaveEnabled ? '开启' : '关闭'}`);
@@ -356,24 +314,13 @@
                 this.stopAutoSavePolling();
             }
         });
-        // 时间线备份/恢复事件监听器已移除，功能已集成到存档系统中
 
-          // 为写入世界书按钮绑定监听器
-         document
-          .getElementById('btn-write-journey')
-          ?.addEventListener('click', () => this.writeJourneyToLorebook());
-        document
-          .getElementById('btn-write-past-lives')
-          ?.addEventListener('click', () => this.writePastLivesToLorebook());
-        document
-          .getElementById('btn-write-novel-mode')
-          ?.addEventListener('click', () => this.writeNovelModeToLorebook());
+        $('#btn-write-journey')?.addEventListener('click', () => this.writeJourneyToLorebook());
+        $('#btn-write-past-lives')?.addEventListener('click', () => this.writePastLivesToLorebook());
+        $('#btn-write-novel-mode')?.addEventListener('click', () => this.writeNovelModeToLorebook());
+        $('#btn-write-character-card')?.addEventListener('click', () => this.writeCharacterCardToLorebook());
 
-        document
-          .getElementById('btn-write-character-card')
-          ?.addEventListener('click', () => this.writeCharacterCardToLorebook());
-        // 为自动写入复选框绑定监听器，并增加状态保存
-        const autoWriteCheckbox = document.getElementById('auto-write-checkbox');
+        const autoWriteCheckbox = $('#auto-write-checkbox');
         if (autoWriteCheckbox) {
           autoWriteCheckbox.addEventListener('change', e => {
             this.isAutoWriteEnabled = e.target.checked;
@@ -387,124 +334,88 @@
           });
         }
 
-        // 为小说模式复选框绑定监听器
-        const novelModeCheckbox = document.getElementById('novel-mode-enabled-checkbox');
+        const novelModeCheckbox = $('#novel-mode-enabled-checkbox');
         if (novelModeCheckbox) {
           novelModeCheckbox.addEventListener('change', e => {
             this.isNovelModeEnabled = e.target.checked;
             this.saveNovelModeState(this.isNovelModeEnabled);
             this.showTemporaryMessage(`小说模式自动写入已${this.isNovelModeEnabled ? '开启' : '关闭'}`);
-
-            // 新逻辑：此开关只控制轮询，不触发UI刷新
             if (this.isNovelModeEnabled) {
               this.startNovelModeAutoWritePolling();
             } else {
               this.stopNovelModeAutoWritePolling();
             }
-
-            // 手动更新标签文本以提供即时反馈
-            const label = document.querySelector('label[for="novel-mode-enabled-checkbox"]');
+            const label = $('label[for="novel-mode-enabled-checkbox"]');
             if (label) {
-              label.textContent = `开启小说模式`; // 恢复原始文本
+              label.textContent = `开启小说模式`;
             }
-            // 刷新打开的模态框以更新按钮状态和提示
-            if (document.getElementById('extracted-content-modal').style.display === 'flex') {
+            if ($('#extracted-content-modal').style.display === 'flex') {
               this.showExtractedContent();
             }
           });
         }
 
-        // 指令中心按钮
-        document
-          .getElementById('btn-execute-commands')
-          ?.addEventListener('click', () => this.executePendingActions());
-        document.getElementById('btn-clear-commands')?.addEventListener('click', () => this.clearPendingActions());
-        document.getElementById('btn-refresh-storage')?.addEventListener('click', () => this.refreshLocalStorage());
+        $('#btn-execute-commands')?.addEventListener('click', () => this.executePendingActions());
+        $('#btn-clear-commands')?.addEventListener('click', () => this.clearPendingActions());
+        $('#btn-refresh-storage')?.addEventListener('click', () => this.refreshLocalStorage());
 
-        document
-          .querySelectorAll('.modal-close-btn')
-          .forEach(btn => btn.addEventListener('click', () => this.closeAllModals()));
-        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        $$('.modal-close-btn').forEach(btn => btn.addEventListener('click', () => this.closeAllModals()));
+        $$('.modal-overlay').forEach(overlay => {
           overlay.addEventListener('click', e => {
             if (e.target === overlay) this.closeAllModals();
           });
         });
 
-        // 事件委托：背包内的点击事件
-        const inventoryModalBody = document.querySelector('#inventory-modal .modal-body');
+        const inventoryModalBody = $('#inventory-modal .modal-body');
         if (inventoryModalBody) {
           inventoryModalBody.addEventListener('click', e => {
-            if (e.target.classList.contains('item-equip-btn')) {
-              const itemElement = e.target.closest('.inventory-item');
-              const itemData = JSON.parse(itemElement.dataset.itemDetails.replace(/'/g, "'") || '{}');
-              const category = itemElement.dataset.category;
-              // 新增：处理功法装备按钮
-              if (e.target.dataset.equipType === 'zhuxiu') {
-                this.equipItem(itemData, category, e.target, 'zhuxiuGongfa');
-              } else if (e.target.dataset.equipType === 'fuxiu') {
-                this.equipItem(itemData, category, e.target, 'fuxiuXinfa');
-              } else {
-                this.equipItem(itemData, category, e.target);
-              }
-            } else if (e.target.classList.contains('item-use-btn')) {
-              const itemElement = e.target.closest('.inventory-item');
-              const itemData = JSON.parse(itemElement.dataset.itemDetails.replace(/'/g, "'") || '{}');
-              this.useItem(itemData, e.target);
-            } else if (e.target.classList.contains('item-unequip-btn')) {
-              const slotId = e.target.dataset.slotId;
-              const slotElement = document.getElementById(slotId);
-              if (slotElement) {
-                this.unequipItem(slotId, slotElement, true, true); // 从背包卸载，需要刷新背包UI
-              }
-            } else if (e.target.classList.contains('item-discard-btn')) {
-              const itemElement = e.target.closest('.inventory-item');
-              const itemData = JSON.parse(itemElement.dataset.itemDetails.replace(/'/g, "'") || '{}');
-              const category = itemElement.dataset.category;
+            const target = e.target;
+            const itemElement = target.closest('.inventory-item');
+            if (!itemElement) return;
+            const itemData = JSON.parse(itemElement.dataset.itemDetails.replace(/'/g, "'") || '{}');
+            const category = itemElement.dataset.category;
+
+            if (target.classList.contains('item-equip-btn')) {
+              if (target.dataset.equipType === 'zhuxiu') this.equipItem(itemData, category, target, 'zhuxiuGongfa');
+              else if (target.dataset.equipType === 'fuxiu') this.equipItem(itemData, category, target, 'fuxiuXinfa');
+              else this.equipItem(itemData, category, target);
+            } else if (target.classList.contains('item-use-btn')) {
+              this.useItem(itemData, target);
+            } else if (target.classList.contains('item-unequip-btn')) {
+              const slotId = target.dataset.slotId;
+              const slotElement = $(`#${slotId}`);
+              if (slotElement) this.unequipItem(slotId, slotElement, true, true);
+            } else if (target.classList.contains('item-discard-btn')) {
               this.discardItem(itemData, category, itemElement);
             }
           });
         }
 
-        // 事件委托：左侧装备面板的事件
-        const characterPanel = document.querySelector('.character-panel');
+        const characterPanel = $('.character-panel');
         if (characterPanel) {
-          // 悬浮显示Tooltip
           characterPanel.addEventListener('mouseover', e => {
             const slot = e.target.closest('.equipment-slot');
-            if (slot && slot.classList.contains('equipped')) {
-              this.showEquipmentTooltip(slot, e);
-            }
+            if (slot && slot.classList.contains('equipped')) this.showEquipmentTooltip(slot, e);
           });
           characterPanel.addEventListener('mouseout', e => {
             const slot = e.target.closest('.equipment-slot');
-            if (slot) {
-              this.hideEquipmentTooltip();
-            }
+            if (slot) this.hideEquipmentTooltip();
           });
-          // 点击卸载装备
           characterPanel.addEventListener('click', e => {
             const slot = e.target.closest('.equipment-slot');
-            if (slot && slot.classList.contains('equipped')) {
-              this.unequipItem(slot.id, slot, true, false); // 从主面板卸载，不需要弹出背包
-            }
+            if (slot && slot.classList.contains('equipped')) this.unequipItem(slot.id, slot, true, false);
           });
         }
 
-        // 为快速发送按钮绑定事件
-        document.getElementById('btn-quick-send')?.addEventListener('click', () => this.executeQuickSend());
-
-        // 新增：为“当前指令”按钮绑定事件
-        document.getElementById('btn-quick-commands')?.addEventListener('click', e => {
-          e.stopPropagation(); // 防止触发document的点击事件
+        $('#btn-quick-send')?.addEventListener('click', () => this.executeQuickSend());
+        $('#btn-quick-commands')?.addEventListener('click', e => {
+          e.stopPropagation();
           this.toggleQuickCommands();
         });
 
-        // 新增：为指令列表项绑定事件（事件委托） - 已移除点击功能
-
-        // 新增：点击外部关闭指令列表
         document.addEventListener('click', e => {
-          const popup = document.getElementById('quick-command-popup');
-          const button = document.getElementById('btn-quick-commands');
+          const popup = $('#quick-command-popup');
+          const button = $('#btn-quick-commands');
           if (popup && button && popup.style.display === 'block') {
             if (!popup.contains(e.target) && !button.contains(e.target)) {
               this.hideQuickCommands();
@@ -512,13 +423,10 @@
           }
         });
 
-        // --- 新增：为自动化修剪功能绑定事件监听器 (事件委托) ---
-        const historyModal = document.getElementById('history-modal');
+        const historyModal = $('#history-modal');
         if (historyModal) {
             historyModal.addEventListener('click', e => {
-                if (e.target.id === 'btn-show-trim-modal') {
-                    this.showTrimJourneyModal();
-                }
+                if (e.target.id === 'btn-show-trim-modal') this.showTrimJourneyModal();
             });
             historyModal.addEventListener('change', e => {
                 if (e.target.id === 'auto-trim-checkbox') {
@@ -529,50 +437,43 @@
             });
         }
 
-        const trimModal = document.getElementById('trim-journey-modal');
+        const trimModal = $('#trim-journey-modal');
         if (trimModal) {
             trimModal.addEventListener('click', e => {
-                if (e.target.id === 'btn-confirm-trim') {
-                    this.trimJourneyAutomation();
-                }
-                if (e.target.id === 'btn-cancel-trim') {
-                    this.closeAllModals();
-                }
-                // Also handle the close button in the header
-                if (e.target.closest('.modal-close-btn')) {
-                    this.closeAllModals();
-                }
+                if (e.target.id === 'btn-confirm-trim') this.trimJourneyAutomation();
+                if (e.target.id === 'btn-cancel-trim' || e.target.closest('.modal-close-btn')) this.closeAllModals();
             });
         }
 
-        this.listenersBound = true; // 设置标志位，确保此代码块只运行一次
+        this.listenersBound = true;
       },
 
         // --- Modal Control ---
-       async showGuixuSystem() {
-        this.openModal('guixu-system-modal');
-        const body = document.querySelector('#guixu-system-modal .modal-body');
-        if (!body) return;
-        body.innerHTML =
-          '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在连接归墟...</p>';
+      async showGuixuSystem() {
+      const { $, h } = GuixuDOM;
+      this.openModal('guixu-system-modal');
+      const body = $('#guixu-system-modal .modal-body');
+      if (!body) return;
+      body.innerHTML =
+        '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在连接归墟...</p>';
 
-        try {
-          const messages = await getChatMessages(getCurrentMessageId());
-          const stat_data = messages?.[0]?.data?.stat_data;
-          if (!stat_data) {
-            body.innerHTML =
-              '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法连接归墟。</p>';
-            return;
-          }
+      try {
+        const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
+        const stat_data = messages?.[0]?.data?.stat_data;
+        if (!stat_data) {
+          body.innerHTML =
+            '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法连接归墟。</p>';
+          return;
+        }
 
-          const currentLife = this.SafeGetValue(stat_data, '当前第x世', '1');
-          const guixuSpace = this.SafeGetValue(stat_data, '归墟空间', '空无一物');
-          const currentChoice = this.SafeGetValue(stat_data, '本世归墟选择', '无');
-          const chargeTime = this.SafeGetValue(stat_data, '归墟充能时间', '0');
-          const shengli = this.SafeGetValue(stat_data, '生理年龄', 'N/A');
-          const shengliMax = this.SafeGetValue(stat_data, '生理年龄上限', 'N/A');
-          const xinli = this.SafeGetValue(stat_data, '心理年龄', 'N/A');
-          const xinliMax = this.SafeGetValue(stat_data, '心理年龄上限', 'N/A');
+        const currentLife = GuixuHelpers.SafeGetValue(stat_data, '当前第x世', '1');
+        const guixuSpace = GuixuHelpers.SafeGetValue(stat_data, '归墟空间', '空无一物');
+        const currentChoice = GuixuHelpers.SafeGetValue(stat_data, '本世归墟选择', '无');
+        const chargeTime = GuixuHelpers.SafeGetValue(stat_data, '归墟充能时间', '0');
+        const shengli = GuixuHelpers.SafeGetValue(stat_data, '生理年龄', 'N/A');
+        const shengliMax = GuixuHelpers.SafeGetValue(stat_data, '生理年龄上限', 'N/A');
+        const xinli = GuixuHelpers.SafeGetValue(stat_data, '心理年龄', 'N/A');
+        const xinliMax = GuixuHelpers.SafeGetValue(stat_data, '心理年龄上限', 'N/A');
 
           body.innerHTML = `
                 <div class="panel-section">
@@ -594,22 +495,22 @@
             `;
 
           // 为动态添加的按钮绑定事件
-          document.getElementById('btn-trigger-guixu').addEventListener('click', () => {
-            if (chargeTime >= 100) {
-              this.showCustomConfirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。', async () => {
-                try {
-                  const command = '{{user}}选择归墟，世界将回到最初的锚点';
-                  await this.handleAction(command); // 改为调用 handleAction
-                  this.showTemporaryMessage('轮回已开启...');
-                  this.closeAllModals();
-                } catch (error) {
-                  console.error('执行归墟指令时出错:', error);
-                  this.showTemporaryMessage('执行归墟指令失败！');
-                }
-              });
-            } else {
-              this.showTemporaryMessage('归墟充能进度不足');
-            }
+          $('#btn-trigger-guixu').addEventListener('click', () => {
+              if (chargeTime >= 100) {
+                this.showCustomConfirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。', async () => {
+                  try {
+                    const command = '{{user}}选择归墟，世界将回到最初的锚点';
+                    await this.handleAction(command); // 改为调用 handleAction
+                    GuixuHelpers.showTemporaryMessage('轮回已开启...');
+                    this.closeAllModals();
+                  } catch (error) {
+                    console.error('执行归墟指令时出错:', error);
+                    GuixuHelpers.showTemporaryMessage('执行归墟指令失败！');
+                  }
+                });
+              } else {
+                GuixuHelpers.showTemporaryMessage('归墟充能进度不足');
+              }
           });
         } catch (error) {
           console.error('加载归墟系统时出错:', error);
@@ -619,14 +520,15 @@
       },
 
       async showCharacterDetails() {
+        const { $ } = GuixuDOM;
         this.openModal('character-details-modal');
-        const body = document.querySelector('#character-details-modal .modal-body');
+        const body = $('#character-details-modal .modal-body');
         if (!body) return;
         body.innerHTML =
           '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在加载角色数据...</p>';
 
         try {
-          const messages = await getChatMessages(getCurrentMessageId());
+          const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
           const stat_data = messages?.[0]?.data?.stat_data;
           if (!stat_data) {
             body.innerHTML =
@@ -638,17 +540,17 @@
           this.updateDisplayedAttributes();
 
           // 从已渲染的左侧面板获取值，确保与显示一致
-          const fali = document.getElementById('attr-fali').innerText;
-          const shenhai = document.getElementById('attr-shenhai').innerText;
-          const daoxin = document.getElementById('attr-daoxin').innerText;
-          const kongsu = document.getElementById('attr-kongsu').innerText;
-          const qiyun = document.getElementById('attr-qiyun').innerText;
-          const shengli = document.getElementById('attr-shengli').innerText;
-          const xinli = document.getElementById('attr-xinli').innerText;
+          const fali = $('#attr-fali').innerText;
+          const shenhai = $('#attr-shenhai').innerText;
+          const daoxin = $('#attr-daoxin').innerText;
+          const kongsu = $('#attr-kongsu').innerText;
+          const qiyun = $('#attr-qiyun').innerText;
+          const shengli = $('#attr-shengli').innerText;
+          const xinli = $('#attr-xinli').innerText;
 
           // 从 stat_data 获取新增的值
-          const xiuxingjindu = this.SafeGetValue(stat_data, '修为进度', '0');
-          const xiuxingpingjing = this.SafeGetValue(stat_data, '修为瓶颈', '无');
+          const xiuxingjindu = GuixuHelpers.SafeGetValue(stat_data, '修为进度', '0');
+          const xiuxingpingjing = GuixuHelpers.SafeGetValue(stat_data, '修为瓶颈', '无');
 
           // 构建HTML
           body.innerHTML = `
@@ -689,22 +591,25 @@
       },
 
       openModal(modalId) {
+        const { $, $$ } = GuixuDOM;
         this.closeAllModals();
-        const modal = document.getElementById(modalId);
+        const modal = $(`#${modalId}`);
         if (modal) modal.style.display = 'flex';
       },
 
       closeAllModals() {
-        document.querySelectorAll('.modal-overlay').forEach(modal => {
+        const { $$ } = GuixuDOM;
+        $$('.modal-overlay').forEach(modal => {
           modal.style.display = 'none';
         });
       },
 
       showCustomConfirm(message, onConfirm) {
-        const modal = document.getElementById('custom-confirm-modal');
-        const messageEl = document.getElementById('custom-confirm-message');
-        const okBtn = document.getElementById('custom-confirm-btn-ok');
-        const cancelBtn = document.getElementById('custom-confirm-btn-cancel');
+        const { $ } = GuixuDOM;
+        const modal = $('#custom-confirm-modal');
+        const messageEl = $('#custom-confirm-message');
+        const okBtn = $('#custom-confirm-btn-ok');
+        const cancelBtn = $('#custom-confirm-btn-cancel');
 
         if (!modal || !messageEl || !okBtn || !cancelBtn) return;
 
@@ -733,15 +638,16 @@
 
       // --- Feature Implementations (now simplified) ---
       async showInventory() {
+        const { $ } = GuixuDOM;
         this.openModal('inventory-modal');
-        const body = document.querySelector('#inventory-modal .modal-body');
+        const body = $('#inventory-modal .modal-body');
         if (!body) return;
 
         body.innerHTML =
           '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在清点行囊...</p>';
 
         try {
-          const messages = await getChatMessages(getCurrentMessageId());
+          const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
           if (!messages || messages.length === 0 || !messages[0].data || !messages[0].data.stat_data) {
             body.innerHTML =
               '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取背包数据。</p>';
@@ -757,15 +663,16 @@
       },
 
       async showRelationships() {
+        const { $ } = GuixuDOM;
         this.openModal('relationships-modal');
-        const body = document.querySelector('#relationships-modal .modal-body');
+        const body = $('#relationships-modal .modal-body');
         if (!body) return;
 
         body.innerHTML =
           '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在梳理人脉...</p>';
 
         try {
-          const messages = await getChatMessages(getCurrentMessageId());
+          const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
           if (!messages || messages.length === 0 || !messages[0].data || !messages[0].data.stat_data) {
             body.innerHTML =
               '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取人物关系数据。</p>';
@@ -805,15 +712,15 @@
           try {
             const rel = typeof rawRel === 'string' ? JSON.parse(rawRel) : rawRel;
 
-            const name = this.SafeGetValue(rel, 'name', '未知之人');
-            const tier = this.SafeGetValue(rel, 'tier', '凡人');
-            const level = this.SafeGetValue(rel, '等级', '');
-            const relationship = this.SafeGetValue(rel, 'relationship', '萍水相逢');
-            const description = this.SafeGetValue(rel, 'description', '背景不详');
-            const favorability = parseInt(this.SafeGetValue(rel, 'favorability', 0), 10);
+            const name = GuixuHelpers.safeGetValue(rel, 'name', '未知之人');
+            const tier = GuixuHelpers.safeGetValue(rel, 'tier', '凡人');
+            const level = GuixuHelpers.safeGetValue(rel, '等级', '');
+            const relationship = GuixuHelpers.safeGetValue(rel, 'relationship', '萍水相逢');
+            const description = GuixuHelpers.safeGetValue(rel, 'description', '背景不详');
+            const favorability = parseInt(GuixuHelpers.safeGetValue(rel, 'favorability', 0), 10);
             const eventHistory = rel.event_history || [];
 
-            const tierStyle = this.getTierStyle(tier);
+            const tierStyle = GuixuHelpers.getTierStyle(tier);
             const favorabilityPercent = Math.max(0, Math.min(100, (favorability / 200) * 100)); // 假设好感度上限为200
             const cultivationDisplay = level ? `${tier} ${level}` : tier;
 
@@ -859,104 +766,16 @@
         );
       },
 
-      getTierStyle(tier) {
-        const animatedStyle = 'background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: god-tier-animation 3s linear infinite; font-weight: bold;';
-        const styles = {
-          练气: 'color: #FFFFFF;',
-          筑基: 'color: #66CDAA;',
-          金丹: 'color: #FFD700;',
-          元婴: `background: linear-gradient(90deg, #DA70D6, #BA55D3, #9932CC, #BA55D3, #DA70D6); ${animatedStyle}`,
-          化神: `background: linear-gradient(90deg, #DC143C, #FF4500, #B22222, #FF4500, #DC143C); ${animatedStyle}`,
-          合体: `background: linear-gradient(90deg, #C71585, #FF1493, #DB7093, #FF1493, #C71585); ${animatedStyle}`,
-          飞升: `background: linear-gradient(90deg, #FF416C, #FF4B2B, #FF6B6B, #FF4B2B, #FF416C); ${animatedStyle}`,
-          神桥: `background: linear-gradient(90deg, #cccccc, #ffffff, #bbbbbb, #ffffff, #cccccc); ${animatedStyle}`,
-        };
-        const baseStyle = 'font-style: italic;';
-        return (styles[tier] || 'color: #e0dcd1;') + baseStyle;
-      },
-
-      // --- 新增：品阶排序核心函数 ---
-      getTierOrder(tier) {
-        // 品阶等级映射：数值越高，品阶越高
-        // 支持两种品阶系统：
-        // 1. 物品品阶：神品 > 仙品 > 天品 > 极品 > 上品 > 中品 > 下品 > 凡品
-        // 2. 修仙境界：神桥 > 飞升 > 合体 > 化神 > 元婴 > 金丹 > 筑基 > 练气
-        const tierOrder = {
-          // 物品品阶系统
-          '凡品': 1,
-          '下品': 2,
-          '中品': 3,
-          '上品': 4,
-          '极品': 5,
-          '天品': 6,
-          '仙品': 7,
-          '神品': 8,
-          
-          // 修仙境界系统
-          '练气': 1,
-          '筑基': 2,
-          '金丹': 3,
-          '元婴': 4,
-          '化神': 5,
-          '合体': 6,
-          '飞升': 7,
-          '神桥': 8
-        };
-        return tierOrder[tier] || 0; // 未知品阶排在最前
-      },
-
-      // --- 新增：通用品阶排序函数 ---
-      sortByTier(items, getTierFn) {
-        if (!Array.isArray(items)) return items;
-        
-        return [...items].sort((a, b) => {
-          const tierA = getTierFn(a);
-          const tierB = getTierFn(b);
-          const orderA = this.getTierOrder(tierA);
-          const orderB = this.getTierOrder(tierB);
-          
-          // 按品阶从高到低排序，支持两种品阶系统：
-          // 物品品阶：神品 > 仙品 > 天品 > 极品 > 上品 > 中品 > 下品 > 凡品
-          // 修仙境界：神桥 > 飞升 > 合体 > 化神 > 元婴 > 金丹 > 筑基 > 练气
-          // 如果品阶相同，则保持原有顺序（稳定排序）
-          if (orderA === orderB) {
-            return 0;
-          }
-          return orderB - orderA;
-        });
-      },
-
-      getTierColorStyle(tier) {
-        const tierColors = {
-          凡品: '#FFFFFF',
-          下品: '#66CDAA',
-          中品: '#FFD700',
-          上品: 'linear-gradient(90deg, #DA70D6, #BA55D3, #9932CC, #BA55D3, #DA70D6)',
-          极品: 'linear-gradient(90deg, #DC143C, #FF4500, #B22222, #FF4500, #DC143C)',
-          天品: 'linear-gradient(90deg, #C71585, #FF1493, #DB7093, #FF1493, #C71585)',
-          仙品: 'linear-gradient(90deg, #FF416C, #FF4B2B, #FF6B6B, #FF4B2B, #FF416C)',
-          神品: 'linear-gradient(90deg, #cccccc, #ffffff, #bbbbbb, #ffffff, #cccccc)',
-        };
-
-        const animatedTiers = ['上品', '极品', '天品', '仙品', '神品'];
-        const color = tierColors[tier] || '#e0dcd1';
-
-        if (animatedTiers.includes(tier)) {
-          return `background: ${color}; background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: god-tier-animation 3s linear infinite; font-weight: bold;`;
-        }
-
-        return `color: ${color};`;
-      },
-
       updateTalentAndLinggen(data) {
-        const container = document.getElementById('talent-linggen-list');
+        const { $ } = GuixuDOM;
+        const container = $('#talent-linggen-list');
         if (!container) return;
         container.innerHTML = '';
 
         let html = '';
 
         // 1. 处理灵根列表 - 添加品阶排序
-        const linggenList = _.get(data, '灵根列表.0', []);
+        const linggenList = GuixuAPI.lodash.get(data, '灵根列表.0', []);
         if (Array.isArray(linggenList) && linggenList.length > 0 && linggenList[0] !== '$__META_EXTENSIBLE__$') {
           // 解析并排序灵根
           const parsedLinggenList = [];
@@ -972,15 +791,15 @@
           });
 
           // 按品阶排序灵根（神品 > 仙品 > ... > 凡品）
-          const sortedLinggenList = this.sortByTier(parsedLinggenList, (linggen) =>
-            this.SafeGetValue(linggen, '品阶', '凡品')
+          const sortedLinggenList = GuixuHelpers.sortByTier(parsedLinggenList, (linggen) =>
+            GuixuHelpers.safeGetValue(linggen, '品阶', '凡品')
           );
 
           sortedLinggenList.forEach(linggen => {
-            const name = this.SafeGetValue(linggen, '名称', '未知灵根');
-            const tier = this.SafeGetValue(linggen, '品阶', '凡品');
-            const description = this.SafeGetValue(linggen, '描述', '无描述');
-            const tierStyle = this.getTierColorStyle(tier);
+            const name = GuixuHelpers.safeGetValue(linggen, '名称', '未知灵根');
+            const tier = GuixuHelpers.safeGetValue(linggen, '品阶', '凡品');
+            const description = GuixuHelpers.safeGetValue(linggen, '描述', '无描述');
+            const tierStyle = GuixuHelpers.getTierColorStyle(tier);
             const itemDetailsHtml = this.renderItemDetailsForInventory(linggen);
 
             html += `
@@ -1006,7 +825,7 @@
         }
 
         // 2. 处理天赋列表 - 添加品阶排序
-        const tianfuList = _.get(data, '天赋列表.0', []);
+        const tianfuList = GuixuAPI.lodash.get(data, '天赋列表.0', []);
         if (Array.isArray(tianfuList) && tianfuList.length > 0 && tianfuList[0] !== '$__META_EXTENSIBLE__$') {
           // 解析并排序天赋
           const parsedTianfuList = [];
@@ -1022,15 +841,15 @@
           });
 
           // 按品阶排序天赋（神品 > 仙品 > ... > 凡品）
-          const sortedTianfuList = this.sortByTier(parsedTianfuList, (tianfu) =>
-            this.SafeGetValue(tianfu, 'tier', '凡品')
+          const sortedTianfuList = GuixuHelpers.sortByTier(parsedTianfuList, (tianfu) =>
+            GuixuHelpers.safeGetValue(tianfu, 'tier', '凡品')
           );
 
           sortedTianfuList.forEach(tianfu => {
-            const name = this.SafeGetValue(tianfu, 'name', '未知天赋');
-            const tier = this.SafeGetValue(tianfu, 'tier', '凡品');
-            const description = this.SafeGetValue(tianfu, 'description', '无描述');
-            const tierStyle = this.getTierColorStyle(tier);
+            const name = GuixuHelpers.safeGetValue(tianfu, 'name', '未知天赋');
+            const tier = GuixuHelpers.safeGetValue(tianfu, 'tier', '凡品');
+            const description = GuixuHelpers.safeGetValue(tianfu, 'description', '无描述');
+            const tierStyle = GuixuHelpers.getTierColorStyle(tier);
             const itemDetailsHtml = this.renderItemDetailsForInventory(tianfu);
 
             html += `
@@ -1103,8 +922,8 @@
             });
 
             // 按品阶排序物品（神品 > 仙品 > ... > 凡品）
-            const sortedItems = this.sortByTier(parsedItems, (item) =>
-              this.SafeGetValue(item, 'tier', '凡品')
+            const sortedItems = GuixuHelpers.sortByTier(parsedItems, (item) =>
+              GuixuHelpers.safeGetValue(item, 'tier', '凡品')
             );
 
             sortedItems.forEach(item => {
@@ -1112,15 +931,15 @@
                 // 确保传递给前端的数据是完整的
                 const itemJson = JSON.stringify(item).replace(/'/g, "'");
 
-                const name = this.SafeGetValue(item, 'name', '未知物品');
-                const id = this.SafeGetValue(item, 'id', null);
-                const tier = this.SafeGetValue(item, 'tier', '无');
+                const name = GuixuHelpers.safeGetValue(item, 'name', '未知物品');
+                const id = GuixuHelpers.safeGetValue(item, 'id', null);
+                const tier = GuixuHelpers.safeGetValue(item, 'tier', '无');
                 const hasQuantity = item.hasOwnProperty('quantity');
-                const quantity = parseInt(this.SafeGetValue(item, 'quantity', 1), 10);
-                const description = this.SafeGetValue(
+                const quantity = parseInt(GuixuHelpers.safeGetValue(item, 'quantity', 1), 10);
+                const description = GuixuHelpers.safeGetValue(
                   item,
                   'description',
-                  this.SafeGetValue(item, 'effect', '无描述'),
+                  GuixuHelpers.safeGetValue(item, 'effect', '无描述'),
                 );
 
                 // **BUG修复**: 计算显示数量时，减去待处理队列中的使用和丢弃数量
@@ -1142,7 +961,7 @@
                   return; // 跳过这个物品的渲染
                 }
 
-                const tierStyle = this.getTierStyle(tier);
+                const tierStyle = GuixuHelpers.getTierStyle(tier);
                 const tierDisplay =
                   tier !== '无' ? `<span style="${tierStyle} margin-right: 15px;">品阶: ${tier}</span>` : '';
                 const quantityDisplay = hasQuantity ? `<span class="item-quantity">数量: ${displayQuantity}</span>` : '';
@@ -1237,11 +1056,11 @@
       // --- Tooltip and Equip Logic (重构后) ---
       renderTooltipContent(item) {
         // 根据最新的变量结构解析
-        const tierStyle = this.getTierStyle(this.SafeGetValue(item, 'tier'));
-        const level = this.SafeGetValue(item, 'level', '');
+        const tierStyle = GuixuHelpers.getTierStyle(GuixuHelpers.safeGetValue(item, 'tier'));
+        const level = GuixuHelpers.safeGetValue(item, 'level', '');
         const tierDisplay = level
-          ? `${this.SafeGetValue(item, 'tier', '凡品')} ${level}`
-          : this.SafeGetValue(item, 'tier', '凡品');
+          ? `${GuixuHelpers.safeGetValue(item, 'tier', '凡品')} ${level}`
+          : GuixuHelpers.safeGetValue(item, 'tier', '凡品');
 
         let attributesHtml = '';
         const attributes = item.attributes_bonus; // 直接使用新key
@@ -1268,9 +1087,9 @@
         }
 
         return `
-                <div class="tooltip-title" style="${tierStyle}">${this.SafeGetValue(item, 'name')}</div>
+                <div class="tooltip-title" style="${tierStyle}">${GuixuHelpers.safeGetValue(item, 'name')}</div>
                 <p><strong>品阶:</strong> ${tierDisplay}</p>
-                <p><i>${this.SafeGetValue(item, 'description', '无描述')}</i></p>
+                <p><i>${GuixuHelpers.safeGetValue(item, 'description', '无描述')}</i></p>
                 ${
                   attributesHtml
                     ? `<div class="tooltip-section tooltip-attributes">${attributesHtml}</div>`
@@ -1281,7 +1100,8 @@
       },
 
       showEquipmentTooltip(element, event) {
-        const tooltip = document.getElementById('equipment-tooltip');
+        const { $ } = GuixuDOM;
+        const tooltip = $('#equipment-tooltip');
         const itemDataString = element.dataset.itemDetails;
         if (!tooltip || !itemDataString) return;
 
@@ -1316,7 +1136,8 @@
       },
 
       hideEquipmentTooltip() {
-        const tooltip = document.getElementById('equipment-tooltip');
+        const { $ } = GuixuDOM;
+        const tooltip = $('#equipment-tooltip');
         if (tooltip) tooltip.style.display = 'none';
       },
 
@@ -1355,9 +1176,9 @@
       },
 
       equipItem(item, category, buttonElement, equipType = null) {
-        const itemId = this.SafeGetValue(item, 'id');
+        const itemId = GuixuHelpers.safeGetValue(item, 'id');
         if (!itemId || itemId === 'N/A') {
-          this.showTemporaryMessage('物品无ID，无法装备。');
+          GuixuHelpers.showTemporaryMessage('物品无ID，无法装备。');
           return;
         }
 
@@ -1370,7 +1191,7 @@
             (equipType === 'fuxiuXinfa' && isEquippedAsMain) ||
             (equipType === 'zhuxiuGongfa' && isEquippedAsAux)
           ) {
-            this.showTemporaryMessage('该功法已被装备在另一槽位。');
+            GuixuHelpers.showTemporaryMessage('该功法已被装备在另一槽位。');
             return;
           }
         }
@@ -1379,7 +1200,7 @@
         const slotKey = categoryMap[category];
 
         if (!slotKey) {
-          this.showTemporaryMessage('错误的装备分类或类型。');
+          GuixuHelpers.showTemporaryMessage('错误的装备分类或类型。');
           return;
         }
 
@@ -1388,13 +1209,13 @@
           key => this.equippedItems[key] && this.equippedItems[key].id === itemId,
         );
         if (currentlyEquippedSlot && currentlyEquippedSlot !== slotKey) {
-          const oldSlotElement = document.getElementById(`equip-${currentlyEquippedSlot}`);
+          const oldSlotElement = $(`#equip-${currentlyEquippedSlot}`);
           if (oldSlotElement) {
             this.unequipItem(`equip-${currentlyEquippedSlot}`, oldSlotElement, false); // 静默卸载
           }
         }
 
-        const slotElement = document.getElementById(`equip-${slotKey}`);
+        const slotElement = $(`#equip-${slotKey}`);
         if (!slotElement) return;
 
         // 如果该槽位已有装备，先执行卸载操作
@@ -1405,9 +1226,9 @@
 
         // 更新前端状态和UI（乐观更新）
         this.equippedItems[slotKey] = item; // **逻辑修正**: 存储完整对象
-        const tier = this.SafeGetValue(item, 'tier', '凡品');
-        const tierStyle = this.getTierStyle(tier);
-        slotElement.textContent = this.SafeGetValue(item, 'name');
+        const tier = GuixuHelpers.safeGetValue(item, 'tier', '凡品');
+        const tierStyle = GuixuHelpers.getTierStyle(tier);
+        slotElement.textContent = GuixuHelpers.safeGetValue(item, 'name');
         slotElement.setAttribute('style', tierStyle);
         slotElement.classList.add('equipped');
         slotElement.dataset.itemDetails = JSON.stringify(item).replace(/'/g, "'");
@@ -1418,7 +1239,7 @@
         }
 
         // 添加到指令队列（优化：先移除旧指令，再添加新指令）
-        const itemName = this.SafeGetValue(item, 'name');
+        const itemName = GuixuHelpers.safeGetValue(item, 'name');
         const defaultTextMap = {
           wuqi: '武器',
           fangju: '防具',
@@ -1435,7 +1256,7 @@
           category: slotFriendlyName,
         });
 
-        this.showTemporaryMessage(`已装备 ${this.SafeGetValue(item, 'name')}`);
+        GuixuHelpers.showTemporaryMessage(`已装备 ${GuixuHelpers.safeGetValue(item, 'name')}`);
         this.updateDisplayedAttributes();
         this.saveEquipmentState(); // 保存状态
         this.savePendingActions(); // 保存指令状态
@@ -1459,8 +1280,8 @@
         let itemId = null;
         try {
           const item = JSON.parse(itemDataString.replace(/'/g, "'"));
-          itemName = this.SafeGetValue(item, 'name');
-          itemId = this.SafeGetValue(item, 'id');
+          itemName = GuixuHelpers.safeGetValue(item, 'name');
+          itemId = GuixuHelpers.safeGetValue(item, 'id');
         } catch (e) {
           console.error('卸载时解析物品数据失败', e);
         }
@@ -1486,7 +1307,7 @@
         });
 
         if (showMessage) {
-          this.showTemporaryMessage(`已卸下 ${itemName}`);
+          GuixuHelpers.showTemporaryMessage(`已卸下 ${itemName}`);
         }
         this.updateDisplayedAttributes();
         this.saveEquipmentState(); // 保存状态
@@ -1495,6 +1316,7 @@
       },
 
       loadEquipmentFromMVU(data) {
+        const { $ } = GuixuDOM;
         const equipmentMap = {
           武器: 'wuqi',
           主修功法: 'zhuxiuGongfa',
@@ -1513,21 +1335,21 @@
         };
 
         for (const [mvuKey, slotKey] of Object.entries(equipmentMap)) {
-          const slot = document.getElementById(`equip-${slotKey}`);
+          const slot = $(`#equip-${slotKey}`);
           if (!slot) continue;
 
           // mvu中的装备数据通常是 [ { item_object } ] 的形式
-          // **局部修复**: 直接使用 _.get 获取装备数组，避免 SafeGetValue 将其错误地转为字符串
-          const itemArray = _.get(data, mvuKey, null);
+          // **局部修复**: 直接使用 _.get 获取装备数组，避免 safeGetValue 将其错误地转为字符串
+          const itemArray = GuixuAPI.lodash.get(data, mvuKey, null);
           const item = Array.isArray(itemArray) && itemArray.length > 0 ? itemArray[0] : null;
 
           if (item && typeof item === 'object') {
-            const tier = this.SafeGetValue(item, 'tier', '凡品');
-            const tierStyle = this.getTierStyle(tier);
+            const tier = GuixuHelpers.safeGetValue(item, 'tier', '凡品');
+            const tierStyle = GuixuHelpers.getTierStyle(tier);
             // **逻辑修正**: 此处不再主动修改 this.equippedItems
             // this.equippedItems 的状态由 localStorage 和 equip/unequip 动作管理
             // this.equippedItems[slotKey] = item;
-            slot.textContent = this.SafeGetValue(item, 'name');
+            slot.textContent = GuixuHelpers.safeGetValue(item, 'name');
             slot.setAttribute('style', tierStyle);
             slot.classList.add('equipped');
             slot.dataset.itemDetails = JSON.stringify(item).replace(/'/g, "'");
@@ -1551,11 +1373,11 @@
 
         const stat_data = this.currentMvuState.stat_data;
         const baseAttrs = {
-          fali: parseInt(this.SafeGetValue(stat_data, '基础法力', 0), 10),
-          shenhai: parseInt(this.SafeGetValue(stat_data, '基础神海', 0), 10),
-          daoxin: parseInt(this.SafeGetValue(stat_data, '基础道心', 0), 10),
-          kongsu: parseInt(this.SafeGetValue(stat_data, '基础空速', 0), 10),
-          qiyun: parseInt(this.SafeGetValue(stat_data, '基础气运', 0), 10),
+          fali: parseInt(GuixuHelpers.safeGetValue(stat_data, '基础法力', 0), 10),
+          shenhai: parseInt(GuixuHelpers.safeGetValue(stat_data, '基础神海', 0), 10),
+          daoxin: parseInt(GuixuHelpers.safeGetValue(stat_data, '基础道心', 0), 10),
+          kongsu: parseInt(GuixuHelpers.safeGetValue(stat_data, '基础空速', 0), 10),
+          qiyun: parseInt(GuixuHelpers.safeGetValue(stat_data, '基础气运', 0), 10),
         };
 
         const totalFlatBonuses = { fali: 0, shenhai: 0, daoxin: 0, kongsu: 0, qiyun: 0 };
@@ -1588,14 +1410,14 @@
 
         // 1. 收集所有加成来源
         Object.values(this.equippedItems).forEach(processBonuses);
-        const tianfuList = _.get(stat_data, '天赋列表.0', []);
+        const tianfuList = GuixuAPI.lodash.get(stat_data, '天赋列表.0', []);
         if (Array.isArray(tianfuList)) {
           tianfuList.forEach(tianfu => {
             if (typeof tianfu === 'object' && tianfu !== null) processBonuses(tianfu);
           });
         }
         // 修改：处理灵根列表而非单个灵根
-        const linggenListData = _.get(stat_data, '灵根列表.0', []);
+        const linggenListData = GuixuAPI.lodash.get(stat_data, '灵根列表.0', []);
         if (Array.isArray(linggenListData)) {
           linggenListData.forEach(rawLinggen => {
             try {
@@ -1624,57 +1446,33 @@
 
         // 3. 获取当前值，并确保不超过新计算的上限
         const currentAttrs = {
-            fali: Math.min(parseInt(this.SafeGetValue(stat_data, '当前法力', 0), 10), calculatedMaxAttrs.fali),
-            shenhai: Math.min(parseInt(this.SafeGetValue(stat_data, '当前神海', 0), 10), calculatedMaxAttrs.shenhai),
-            daoxin: Math.min(parseInt(this.SafeGetValue(stat_data, '当前道心', 0), 10), calculatedMaxAttrs.daoxin),
-            kongsu: Math.min(parseInt(this.SafeGetValue(stat_data, '当前空速', 0), 10), calculatedMaxAttrs.kongsu),
+            fali: Math.min(parseInt(GuixuHelpers.safeGetValue(stat_data, '当前法力', 0), 10), calculatedMaxAttrs.fali),
+            shenhai: Math.min(parseInt(GuixuHelpers.safeGetValue(stat_data, '当前神海', 0), 10), calculatedMaxAttrs.shenhai),
+            daoxin: Math.min(parseInt(GuixuHelpers.safeGetValue(stat_data, '当前道心', 0), 10), calculatedMaxAttrs.daoxin),
+            kongsu: Math.min(parseInt(GuixuHelpers.safeGetValue(stat_data, '当前空速', 0), 10), calculatedMaxAttrs.kongsu),
         };
 
         // 4. 更新UI
-        document.getElementById('attr-fali').innerText = `${currentAttrs.fali} / ${calculatedMaxAttrs.fali}`;
-        document.getElementById('attr-shenhai').innerText = `${currentAttrs.shenhai} / ${calculatedMaxAttrs.shenhai}`;
-        document.getElementById('attr-daoxin').innerText = `${currentAttrs.daoxin} / ${calculatedMaxAttrs.daoxin}`;
-        document.getElementById('attr-kongsu').innerText = `${currentAttrs.kongsu} / ${calculatedMaxAttrs.kongsu}`;
-        document.getElementById('attr-qiyun').innerText = calculatedMaxAttrs.qiyun;
+        const { $ } = GuixuDOM;
+        $('#attr-fali').innerText = `${currentAttrs.fali} / ${calculatedMaxAttrs.fali}`;
+        $('#attr-shenhai').innerText = `${currentAttrs.shenhai} / ${calculatedMaxAttrs.shenhai}`;
+        $('#attr-daoxin').innerText = `${currentAttrs.daoxin} / ${calculatedMaxAttrs.daoxin}`;
+        $('#attr-kongsu').innerText = `${currentAttrs.kongsu} / ${calculatedMaxAttrs.kongsu}`;
+        $('#attr-qiyun').innerText = calculatedMaxAttrs.qiyun;
         
         // 年龄等非计算属性直接更新
-        document.getElementById('attr-shengli').innerText = `${this.SafeGetValue(stat_data, '生理年龄')} / ${this.SafeGetValue(stat_data, '生理年龄上限')}`;
-        document.getElementById('attr-xinli').innerText = `${this.SafeGetValue(stat_data, '心理年龄')} / ${this.SafeGetValue(stat_data, '心理年龄上限')}`;
+        $('#attr-shengli').innerText = `${GuixuHelpers.safeGetValue(stat_data, '生理年龄')} / ${GuixuHelpers.safeGetValue(stat_data, '生理年龄上限')}`;
+        $('#attr-xinli').innerText = `${GuixuHelpers.safeGetValue(stat_data, '心理年龄')} / ${GuixuHelpers.safeGetValue(stat_data, '心理年龄上限')}`;
       },
 
       showTemporaryMessage(message, duration = 2000) {
-        const existingMsg = document.querySelector('.temp-message-popup');
-        if (existingMsg) existingMsg.remove();
-
-        const msgElement = document.createElement('div');
-        msgElement.className = 'temp-message-popup';
-        msgElement.textContent = message;
-        msgElement.style.cssText = `
-                position: absolute;
-                top: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: rgba(45, 27, 61, 0.9);
-                color: #c9aa71;
-                padding: 10px 20px;
-                border-radius: 5px;
-                z-index: 2000;
-                font-size: 14px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-                text-align: center;
-                transition: opacity 0.5s ease-out;
-            `;
-        document.querySelector('.guixu-root-container').appendChild(msgElement);
-
-        setTimeout(() => {
-          msgElement.style.opacity = '0';
-          setTimeout(() => msgElement.remove(), 500);
-        }, duration - 500);
+        GuixuHelpers.showTemporaryMessage(message, duration);
       },
 
       showCommandCenter() {
+        const { $ } = GuixuDOM;
         this.openModal('command-center-modal');
-        const body = document.querySelector('#command-center-modal .modal-body');
+        const body = $('#command-center-modal .modal-body');
         if (!body) return;
 
         if (this.pendingActions.length === 0) {
@@ -1740,21 +1538,21 @@
       },
 
       useItem(item, buttonElement) {
-        const itemName = this.SafeGetValue(item, 'name');
+        const itemName = GuixuHelpers.safeGetValue(item, 'name');
         if (itemName === 'N/A') {
-          this.showTemporaryMessage('物品信息错误，无法使用。');
+          GuixuHelpers.showTemporaryMessage('物品信息错误，无法使用。');
           return;
         }
 
         // **BUG修复**: 不再手动操作DOM，而是通过刷新背包来更新UI
         // 检查待定队列中的数量，以防止用户超额使用
-        const originalQuantity = parseInt(this.SafeGetValue(item, 'quantity', 0), 10);
+        const originalQuantity = parseInt(GuixuHelpers.safeGetValue(item, 'quantity', 0), 10);
         const pendingUses = this.pendingActions
           .filter(action => action.action === 'use' && action.itemName === itemName)
           .reduce((total, action) => total + action.quantity, 0);
 
         if (originalQuantity - pendingUses <= 0) {
-          this.showTemporaryMessage(`${itemName} 已用完或已在指令队列中。`);
+          GuixuHelpers.showTemporaryMessage(`${itemName} 已用完或已在指令队列中。`);
           return;
         }
 
@@ -1773,7 +1571,7 @@
           });
         }
 
-        this.showTemporaryMessage(`已将 [使用 ${itemName}] 加入指令队列`);
+        GuixuHelpers.showTemporaryMessage(`已将 [使用 ${itemName}] 加入指令队列`);
         this.savePendingActions();
 
         // 通过重新渲染整个背包来保证UI一致性
@@ -1781,9 +1579,9 @@
       },
 
       discardItem(item, category, itemElement) {
-        const itemName = this.SafeGetValue(item, 'name');
+        const itemName = GuixuHelpers.safeGetValue(item, 'name');
         if (itemName === 'N/A') {
-          this.showTemporaryMessage('物品信息错误，无法丢弃。');
+          GuixuHelpers.showTemporaryMessage('物品信息错误，无法丢弃。');
           return;
         }
 
@@ -1799,10 +1597,10 @@
       },
 
       async promptDiscardQuantity(item, category, itemElement) {
-        const itemName = this.SafeGetValue(item, 'name');
-        const currentQuantity = parseInt(this.SafeGetValue(item, 'quantity', 0), 10);
+        const { h, $ } = GuixuDOM;
+        const itemName = GuixuHelpers.safeGetValue(item, 'name');
+        const currentQuantity = parseInt(GuixuHelpers.safeGetValue(item, 'quantity', 0), 10);
         
-        // 计算可丢弃的数量（减去待处理队列中的使用和丢弃数量）
         const pendingUses = this.pendingActions
           .filter(action => action.action === 'use' && action.itemName === itemName)
           .reduce((total, action) => total + action.quantity, 0);
@@ -1812,65 +1610,61 @@
         const availableQuantity = currentQuantity - pendingUses - pendingDiscards;
 
         if (availableQuantity <= 0) {
-          this.showTemporaryMessage(`${itemName} 没有可丢弃的数量。`);
+          GuixuHelpers.showTemporaryMessage(`${itemName} 没有可丢弃的数量。`);
           return;
         }
 
         return new Promise((resolve) => {
-          // 创建数量输入模态框
-          const modal = document.createElement('div');
-          modal.className = 'modal-overlay';
-          modal.style.display = 'flex';
-          modal.style.zIndex = '2000';
-          modal.innerHTML = `
-            <div class="modal-content" style="width: 400px; height: auto; max-height: none;">
-              <div class="modal-header">
-                <h2 class="modal-title">丢弃物品</h2>
-              </div>
-              <div class="modal-body" style="padding: 20px;">
-                <p style="margin-bottom: 15px; color: #c9aa71;">请输入要丢弃的 <strong>${itemName}</strong> 数量：</p>
-                <p style="font-size: 12px; color: #8b7355; margin-bottom: 10px;">当前可丢弃数量：${availableQuantity}</p>
-                <input type="number" id="discard-quantity-input" min="1" max="${availableQuantity}" value="1"
-                       style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355;
-                              color: #e0dcd1; border-radius: 4px; font-size: 14px; margin-bottom: 20px;">
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                  <button id="discard-quantity-cancel" class="interaction-btn">取消</button>
-                  <button id="discard-quantity-confirm" class="interaction-btn" style="background: #8b0000; border-color: #ff6b6b;">确认丢弃</button>
-                </div>
-              </div>
-            </div>
-          `;
+          const container = $('.guixu-root-container');
+          if (!container) return resolve();
 
-          const container = document.querySelector('.guixu-root-container');
-          container.appendChild(modal);
+          const input = h('input', {
+            type: 'number', id: 'discard-quantity-input', min: '1', max: availableQuantity, value: '1',
+            style: 'width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; font-size: 14px; margin-bottom: 20px;'
+          });
 
-          const input = modal.querySelector('#discard-quantity-input');
-          const confirmBtn = modal.querySelector('#discard-quantity-confirm');
-          const cancelBtn = modal.querySelector('#discard-quantity-cancel');
-
-          confirmBtn.addEventListener('click', () => {
-            const quantity = parseInt(input.value, 10);
-            if (isNaN(quantity) || quantity <= 0 || quantity > availableQuantity) {
-              this.showTemporaryMessage('请输入有效的丢弃数量');
-              return;
+          const confirmBtn = h('button', {
+            id: 'discard-quantity-confirm', className: 'interaction-btn', textContent: '确认丢弃',
+            style: 'background: #8b0000; border-color: #ff6b6b;',
+            onclick: () => {
+              const quantity = parseInt(input.value, 10);
+              if (isNaN(quantity) || quantity <= 0 || quantity > availableQuantity) {
+                this.showTemporaryMessage('请输入有效的丢弃数量');
+                return;
+              }
+              modal.remove();
+              this.confirmDiscardItem(item, category, itemElement, quantity);
+              resolve();
             }
-            modal.remove();
-            this.confirmDiscardItem(item, category, itemElement, quantity);
-            resolve();
           });
 
-          cancelBtn.addEventListener('click', () => {
-            modal.remove();
-            resolve();
+          const cancelBtn = h('button', {
+            id: 'discard-quantity-cancel', className: 'interaction-btn', textContent: '取消',
+            onclick: () => {
+              modal.remove();
+              resolve();
+            }
           });
 
-          // 自动聚焦
+          const modal = h('div', { className: 'modal-overlay', style: 'display: flex; z-index: 2000;' }, [
+            h('div', { className: 'modal-content', style: 'width: 400px; height: auto; max-height: none;' }, [
+              h('div', { className: 'modal-header' }, [h('h2', { className: 'modal-title' }, ['丢弃物品'])]),
+              h('div', { className: 'modal-body', style: 'padding: 20px;' }, [
+                h('p', { style: 'margin-bottom: 15px; color: #c9aa71;' }, ['请输入要丢弃的 ', h('strong', {}, [itemName]), ' 数量：']),
+                h('p', { style: 'font-size: 12px; color: #8b7355; margin-bottom: 10px;' }, [`当前可丢弃数量：${availableQuantity}`]),
+                input,
+                h('div', { style: 'display: flex; gap: 10px; justify-content: flex-end;' }, [cancelBtn, confirmBtn])
+              ])
+            ])
+          ]);
+
+          container.appendChild(modal);
           setTimeout(() => input.focus(), 100);
         });
       },
 
       confirmDiscardItem(item, category, itemElement, quantity = 1) {
-        const itemName = this.SafeGetValue(item, 'name');
+        const itemName = GuixuHelpers.safeGetValue(item, 'name');
         const hasQuantity = item.hasOwnProperty('quantity');
         
         let confirmMessage;
@@ -1895,19 +1689,20 @@
           this.showInventory();
           
           if (hasQuantity) {
-            this.showTemporaryMessage(`已将 [丢弃 ${quantity} 个 ${itemName}] 加入指令队列`);
+            GuixuHelpers.showTemporaryMessage(`已将 [丢弃 ${quantity} 个 ${itemName}] 加入指令队列`);
           } else {
-            this.showTemporaryMessage(`已将 [丢弃 ${itemName}] 加入指令队列`);
+            GuixuHelpers.showTemporaryMessage(`已将 [丢弃 ${itemName}] 加入指令队列`);
           }
         });
       },
 
       showExtractedContent() {
+        const { $ } = GuixuDOM;
         this.openModal('extracted-content-modal');
-        const journeyEl = document.getElementById('extracted-journey');
-        const pastLivesEl = document.getElementById('extracted-past-lives');
-        const variablesEl = document.getElementById('extracted-variable-changes');
-        const sentPromptEl = document.getElementById('sent-prompt-display');
+        const journeyEl = $('#extracted-journey');
+        const pastLivesEl = $('#extracted-past-lives');
+        const variablesEl = $('#extracted-variable-changes');
+        const sentPromptEl = $('#sent-prompt-display');
 
         if (sentPromptEl) {
           sentPromptEl.textContent = this.lastSentPrompt || '尚未发送任何内容';
@@ -1921,8 +1716,8 @@
         if (variablesEl) {
           variablesEl.textContent = this.lastExtractedVariables || '本次无变量改变';
         }
-        const novelModeEl = document.getElementById('extracted-novel-mode');
-        const novelModeBtn = document.getElementById('btn-write-novel-mode');
+        const novelModeEl = $('#extracted-novel-mode');
+        const novelModeBtn = $('#btn-write-novel-mode');
         if (novelModeEl && novelModeBtn) {
           // 新逻辑：始终显示提取到的内容。按钮可用性仅取决于内容是否存在。
           novelModeEl.textContent = this.lastExtractedNovelText || '当前AI回复中未提取到正文内容。';
@@ -1937,8 +1732,8 @@
         }
 
         // 新增：处理提取的角色卡
-        const characterCardEl = document.getElementById('extracted-character-card');
-        const characterCardBtn = document.getElementById('btn-write-character-card');
+        const characterCardEl = $('#extracted-character-card');
+        const characterCardBtn = $('#btn-write-character-card');
         if (characterCardEl && characterCardBtn) {
           characterCardEl.textContent = this.lastExtractedCharacterCard || '未提取到角色卡内容。';
           characterCardBtn.disabled = !this.lastExtractedCharacterCard;
@@ -1946,13 +1741,14 @@
       },
 
       async showJourney() {
+        const { $ } = GuixuDOM;
         this.openModal('history-modal');
         this.loadUnifiedIndex(); // 确保输入框显示正确的序号
-        const titleEl = document.getElementById('history-modal-title');
+        const titleEl = $('#history-modal-title');
         if (titleEl) titleEl.textContent = '本世历程';
 
         // 新增：向模态框头部注入修剪相关的UI
-        const actionsContainer = document.getElementById('history-modal-actions');
+        const actionsContainer = $('#history-modal-actions');
         if (actionsContainer) {
             actionsContainer.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px;" title="启用后，每次自动写入“本世历程”时，都会自动修剪旧的自动化系统内容。">
@@ -1962,22 +1758,22 @@
                 <button id="btn-show-trim-modal" class="interaction-btn" style="padding: 4px 8px; font-size: 12px;">手动修剪</button>
             `;
             // 确保复选框状态与内存中的状态同步
-            const autoTrimCheckbox = document.getElementById('auto-trim-checkbox');
+            const autoTrimCheckbox = $('#auto-trim-checkbox');
             if (autoTrimCheckbox && typeof this.isAutoTrimEnabled !== 'undefined') {
                 autoTrimCheckbox.checked = this.isAutoTrimEnabled;
             }
         }
 
-        const body = document.getElementById('history-modal-body');
+        const body = $('#history-modal-body');
         if (!body) return;
 
         body.innerHTML =
           '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在读取命运之卷...</p>';
         try {
-          const bookName = '1归墟';
+          const bookName = GuixuConstants.LOREBOOK.NAME;
           const index = this.unifiedIndex;
-          const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
-          const allEntries = await TavernHelper.getLorebookEntries(bookName);
+          const journeyKey = index > 1 ? `${GuixuConstants.LOREBOOK.ENTRIES.JOURNEY}(${index})` : GuixuConstants.LOREBOOK.ENTRIES.JOURNEY;
+          const allEntries = await GuixuAPI.getLorebookEntries(bookName);
           // **问题3修复**: 对比时去除两端空格，增加匹配健壮性
           const journeyEntry = allEntries.find(entry => entry.comment.trim() === journeyKey.trim());
 
@@ -1994,21 +1790,22 @@
       },
 
       async showPastLives() {
+        const { $ } = GuixuDOM;
         this.openModal('history-modal');
         this.loadUnifiedIndex(); // 确保输入框显示正确的序号
-        const titleEl = document.getElementById('history-modal-title');
+        const titleEl = $('#history-modal-title');
         if (titleEl) titleEl.textContent = '往世涟漪';
 
-        const body = document.getElementById('history-modal-body');
+        const body = $('#history-modal-body');
         if (!body) return;
 
         body.innerHTML =
           '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在回溯时光长河...</p>';
         try {
-          const bookName = '1归墟';
+          const bookName = GuixuConstants.LOREBOOK.NAME;
           const index = this.unifiedIndex;
-          const pastLivesKey = index > 1 ? `往世涟漪(${index})` : '往世涟漪';
-          const allEntries = await TavernHelper.getLorebookEntries(bookName);
+          const pastLivesKey = index > 1 ? `${GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES}(${index})` : GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES;
+          const allEntries = await GuixuAPI.getLorebookEntries(bookName);
           // **问题3修复**: 对比时去除两端空格，增加匹配健壮性
           const pastLivesEntry = allEntries.find(entry => entry.comment.trim() === pastLivesKey.trim());
 
@@ -2190,13 +1987,14 @@
       },
 
       async renderPastLifeDetails(bookName) {
-        const detailsContainer = document.getElementById('past-life-details');
+        const { $ } = GuixuDOM;
+        const detailsContainer = $('#past-life-details');
         if (!detailsContainer) return;
         detailsContainer.style.display = 'block';
         detailsContainer.innerHTML =
           '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在读取此世记忆...</p>';
         try {
-          const entries = await TavernHelper.getLorebookEntries(bookName, 'summary');
+          const entries = await GuixuAPI.getLorebookEntries(bookName, 'summary');
           if (entries && entries.length > 0) {
             const summaryData = JSON.parse(entries[0].content);
             detailsContainer.innerHTML = `
@@ -2221,8 +2019,9 @@
 
       // --- Dynamic Event Listeners for Lorebook content ---
       bindJourneyListeners() {
+        const { $ } = GuixuDOM;
         // 为本世历程事件绑定点击监听器
-        const timelineContainer = document.querySelector('.timeline-container');
+        const timelineContainer = $('.timeline-container');
         if (timelineContainer) {
           timelineContainer.addEventListener('click', (e) => {
             const timelineEvent = e.target.closest('.timeline-event');
@@ -2234,7 +2033,8 @@
       },
 
       handleJourneyEventClick(eventElement) {
-        const detailedInfo = eventElement.querySelector('.timeline-detailed-info');
+        const { $ } = GuixuDOM;
+        const detailedInfo = $(eventElement, '.timeline-detailed-info');
         
         // 检查详细信息是否已经显示
         if (detailedInfo && detailedInfo.style.display === 'block') {
@@ -2296,7 +2096,7 @@
 
         const index = this.unifiedIndex;
         const finalEntryKey = index > 1 ? `${baseEntryKey}(${index})` : baseEntryKey;
-        const bookName = '1归墟';
+        const bookName = GuixuConstants.LOREBOOK.NAME;
         let reformattedContent = contentToWrite.trim();
         let buttonId;
 
@@ -2321,7 +2121,7 @@
         if (button && !silent) button.textContent = '写入中...';
 
         try {
-            const allEntries = await TavernHelper.getLorebookEntries(bookName);
+            const allEntries = await GuixuAPI.getLorebookEntries(bookName);
             let targetEntry = allEntries.find(entry => entry.comment === finalEntryKey);
 
             if (targetEntry) { // 条目已存在，检查重复并追加
@@ -2360,7 +2160,7 @@
                     updatedContent = this._getTrimmedJourneyContent(updatedContent);
                 }
 
-                await TavernHelper.setLorebookEntries(bookName, [{ uid: targetEntry.uid, content: updatedContent }]);
+                await GuixuAPI.setLorebookEntries(bookName, [{ uid: targetEntry.uid, content: updatedContent }]);
                 if (!silent) this.showTemporaryMessage(`已成功追加内容到“${finalEntryKey}”。`);
 
             } else { // 条目不存在，创建它
@@ -2373,7 +2173,7 @@
                     enabled: false,
                     ... (baseEntryTemplate ? { selective: baseEntryTemplate.selective, constant: baseEntryTemplate.constant, position: baseEntryTemplate.position, case_sensitive: baseEntryTemplate.case_sensitive } : {})
                 };
-                await TavernHelper.createLorebookEntries(bookName, [newEntryData]);
+                await GuixuAPI.createLorebookEntries(bookName, [newEntryData]);
                 if (!silent) this.showTemporaryMessage(`已成功创建并写入到“${finalEntryKey}”。`);
             }
 
@@ -2393,13 +2193,14 @@
       },
 
       async writeCharacterCardToLorebook() {
+        const { $ } = GuixuDOM;
         const content = this.lastExtractedCharacterCard;
         if (!content) {
           this.showTemporaryMessage('没有可写入的角色内容。');
           return;
         }
 
-        const button = document.getElementById('btn-write-character-card');
+        const button = $('#btn-write-character-card');
         if (button) button.textContent = '写入中...';
 
         try {
@@ -2419,8 +2220,8 @@
             throw new Error('无法从提取内容中找到角色“姓名”。');
           }
 
-          const bookName = '1归墟';
-          const allEntries = await TavernHelper.getLorebookEntries(bookName);
+          const bookName = GuixuConstants.LOREBOOK.NAME;
+          const allEntries = await GuixuAPI.getLorebookEntries(bookName);
           const existingEntry = allEntries.find(entry => entry.comment === characterName);
 
           if (existingEntry) {
@@ -2429,7 +2230,7 @@
             return;
           }
 
-          await TavernHelper.createLorebookEntries(bookName, [
+          await GuixuAPI.createLorebookEntries(bookName, [
             {
               comment: characterName,
               keys: [characterName],
@@ -2456,10 +2257,10 @@
           console.warn('[归墟] 尝试向“当前场景”写入空内容，操作已取消。');
           return;
         }
-        const bookName = '1归墟';
-        const sceneKey = '当前场景';
+        const bookName = GuixuConstants.LOREBOOK.NAME;
+        const sceneKey = GuixuConstants.LOREBOOK.ENTRIES.CURRENT_SCENE;
         try {
-          const allEntries = await TavernHelper.getLorebookEntries(bookName);
+          const allEntries = await GuixuAPI.getLorebookEntries(bookName);
           const sceneEntry = allEntries.find(entry => entry.comment === sceneKey);
 
           if (!sceneEntry) {
@@ -2467,7 +2268,7 @@
               `[归墟] 未找到世界书条目 "${sceneKey}"，无法更新场景正文。请在'${bookName}'世界书中创建它。`,
             );
             // 如果条目不存在，我们可以选择创建一个
-            await TavernHelper.createLorebookEntries(bookName, [
+            await GuixuAPI.createLorebookEntries(bookName, [
               {
                 comment: sceneKey,
                 content: sceneContent,
@@ -2479,7 +2280,7 @@
           }
 
           // 使用覆盖式更新
-          await TavernHelper.setLorebookEntries(bookName, [{ uid: sceneEntry.uid, content: sceneContent }]);
+          await GuixuAPI.setLorebookEntries(bookName, [{ uid: sceneEntry.uid, content: sceneContent }]);
           console.log(`[归墟] 成功更新 "${sceneKey}" 内容。`);
         } catch (error) {
           console.error(`[归墟] 更新 "${sceneKey}" 时出错:`, error);
@@ -2487,7 +2288,8 @@
       },
 
       async loadAndDisplayCurrentScene(messageContent = null) {
-        const gameTextDisplay = document.getElementById('game-text-display');
+        const { $ } = GuixuDOM;
+        const gameTextDisplay = $('#game-text-display');
         if (!gameTextDisplay) return;
 
         try {
@@ -2495,7 +2297,7 @@
 
           // 如果没有直接提供内容，则从聊天记录中获取
           if (contentToParse === null) {
-            const messages = await getChatMessages(getCurrentMessageId());
+            const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
             if (!messages || messages.length === 0) return;
             const lastAiMessage = [...messages].reverse().find(m => m.role === 'assistant');
             if (lastAiMessage) {
@@ -2531,11 +2333,12 @@
       },
 
       loadAutoWriteState() {
+        const { $ } = GuixuDOM;
         try {
           const savedState = localStorage.getItem('guixu_auto_write_enabled');
           // 如果localStorage中没有保存过状态，则默认为true (开启)
           this.isAutoWriteEnabled = savedState === null ? true : savedState === 'true';
-          const checkbox = document.getElementById('auto-write-checkbox');
+          const checkbox = $('#auto-write-checkbox');
           if (checkbox) {
             checkbox.checked = this.isAutoWriteEnabled;
           }
@@ -2558,11 +2361,12 @@
       },
 
       loadNovelModeState() {
+        const { $ } = GuixuDOM;
         try {
           const savedState = localStorage.getItem('guixu_novel_mode_enabled');
           // 小说模式默认为 false (关闭)
           this.isNovelModeEnabled = savedState === 'true';
-          const checkbox = document.getElementById('novel-mode-enabled-checkbox');
+          const checkbox = $('#novel-mode-enabled-checkbox');
           if (checkbox) {
             checkbox.checked = this.isNovelModeEnabled;
           }
@@ -2627,6 +2431,7 @@
 
       // **逻辑重构**: 彻底简化的加载函数
       loadEquipmentState() {
+        const { $ } = GuixuDOM;
         try {
           const savedState = localStorage.getItem('guixu_equipped_items');
           if (savedState) {
@@ -2646,7 +2451,7 @@
 
             // 直接用 localStorage 的数据渲染UI
             for (const slotKey in defaultTextMap) {
-              const slotElement = document.getElementById(`equip-${slotKey}`);
+              const slotElement = $(`#equip-${slotKey}`);
               if (!slotElement) continue;
 
               const itemData = this.equippedItems[slotKey];
@@ -2704,12 +2509,13 @@
       },
 
       loadUnifiedIndex() {
+        const { $ } = GuixuDOM;
         try {
           const savedIndex = localStorage.getItem('guixu_unified_index');
           if (savedIndex) {
             this.unifiedIndex = parseInt(savedIndex, 10) || 1;
           }
-          const input = document.getElementById('unified-index-input');
+          const input = $('#unified-index-input');
           if (input) {
             input.value = this.unifiedIndex;
           }
@@ -2748,13 +2554,13 @@
 
       // --- 新增：自动开关世界书轮询逻辑 (V2: 增加条目自动创建) ---
       async updateAutoToggledEntries(andDisableAll = false) {
-        const bookName = '1归墟';
+        const bookName = GuixuConstants.LOREBOOK.NAME;
         const index = this.unifiedIndex;
-        const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
-        const pastLivesKey = index > 1 ? `往世涟漪(${index})` : '往世涟漪';
+        const journeyKey = index > 1 ? `${GuixuConstants.LOREBOOK.ENTRIES.JOURNEY}(${index})` : GuixuConstants.LOREBOOK.ENTRIES.JOURNEY;
+        const pastLivesKey = index > 1 ? `${GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES}(${index})` : GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES;
 
         try {
-            let allEntries = await TavernHelper.getLorebookEntries(bookName);
+            let allEntries = await GuixuAPI.getLorebookEntries(bookName);
             const entriesToCreate = [];
 
             // --- 核心修复：检查并创建缺失的条目 ---
@@ -2793,10 +2599,10 @@
             }
 
             if (entriesToCreate.length > 0) {
-                await TavernHelper.createLorebookEntries(bookName, entriesToCreate);
+                await GuixuAPI.createLorebookEntries(bookName, entriesToCreate);
                 console.log(`[归墟自动开关] 已自动创建 ${entriesToCreate.length} 个新世界书条目。`);
                 // 重新获取所有条目，以包含新创建的条目
-                allEntries = await TavernHelper.getLorebookEntries(bookName);
+                allEntries = await GuixuAPI.getLorebookEntries(bookName);
             }
             // --- 修复结束 ---
 
@@ -2818,7 +2624,7 @@
             }
 
             if (entriesToUpdate.length > 0) {
-                await TavernHelper.setLorebookEntries(bookName, entriesToUpdate);
+                await GuixuAPI.setLorebookEntries(bookName, entriesToUpdate);
                 console.log(`[归墟自动开关] 更新了 ${entriesToUpdate.length} 个世界书条目状态。`);
             }
         } catch (error) {
@@ -2847,17 +2653,19 @@
 
        // --- Misc ---
        applyRandomBackground() {
+        const { $ } = GuixuDOM;
         const backgrounds = [
           'https://i.postimg.cc/ZqvGBxxF/rgthree-compare-temp-hxqke-00004.png',
           'https://i.postimg.cc/fRP4RrmR/rgthree-compare-temp-hxqke-00002.png',
         ];
         const bgUrl = backgrounds[Math.floor(Math.random() * backgrounds.length)];
-        const container = document.querySelector('.guixu-root-container');
+        const container = $('.guixu-root-container');
         if (container) container.style.backgroundImage = `url('${bgUrl}')`;
       },
 
       async executeQuickSend() {
-        const input = document.getElementById('quick-send-input');
+        const { $ } = GuixuDOM;
+        const input = $('#quick-send-input');
         if (!input) return;
         const userMessage = input.value.trim();
         await this.handleAction(userMessage);
@@ -2925,7 +2733,7 @@
               // 3. 调用 generate，传入配置对象
               let aiResponse;
               try {
-                  aiResponse = await TavernHelper.generate(generateConfig);
+                  aiResponse = await GuixuAPI.generate(generateConfig);
               } catch (e) {
                   throw new Error(`TavernHelper.generate 调用失败: ${e.message}`);
               }
@@ -2984,7 +2792,7 @@
               // 5. 静默保存到第0层，实现同层游玩
               let messages;
               try {
-                  messages = await getChatMessages('0');
+                  messages = await GuixuAPI.getChatMessages('0');
               } catch (e) {
                   throw new Error(`getChatMessages('0') 调用失败: ${e.message}`);
               }
@@ -2996,7 +2804,7 @@
                   messageZero.message = aiResponse;
                   messageZero.data = this.currentMvuState;
                   try {
-                      await TavernHelper.setChatMessages([messageZero], { refresh: 'none' });
+                      await GuixuAPI.setChatMessages([messageZero], { refresh: 'none' });
                   } catch (e) {
                       throw new Error(`setChatMessages 调用失败: ${e.message}`);
                   }
@@ -3006,7 +2814,7 @@
               }
 
               // 6. 清理工作
-              const input = document.getElementById('quick-send-input');
+              const input = $('#quick-send-input');
               if (input) input.value = '';
               this.pendingActions = [];
               this.savePendingActions();
@@ -3026,7 +2834,8 @@
 
       // --- 新增：快速指令列表相关函数 ---
       toggleQuickCommands() {
-        const popup = document.getElementById('quick-command-popup');
+        const { $ } = GuixuDOM;
+        const popup = $('#quick-command-popup');
         if (!popup) return;
 
         if (popup.style.display === 'block') {
@@ -3037,7 +2846,8 @@
       },
 
       showQuickCommands() {
-        const popup = document.getElementById('quick-command-popup');
+        const { $ } = GuixuDOM;
+        const popup = $('#quick-command-popup');
         if (!popup) return;
 
         if (this.pendingActions.length === 0) {
@@ -3074,7 +2884,8 @@
       },
 
       hideQuickCommands() {
-        const popup = document.getElementById('quick-command-popup');
+        const { $ } = GuixuDOM;
+        const popup = $('#quick-command-popup');
         if (popup) {
           popup.style.display = 'none';
         }
@@ -3371,10 +3182,11 @@
 
       // --- 新增：多存档管理功能 ---
       showSaveLoadManager() {
+        const { $ } = GuixuDOM;
         this.openModal('save-load-modal');
-        const manualContainer = document.getElementById('save-slots-container');
-        const autoContainer = document.getElementById('auto-save-slot-container');
-        const autoSaveCheckbox = document.getElementById('auto-save-checkbox');
+        const manualContainer = $('#save-slots-container');
+        const autoContainer = $('#auto-save-slot-container');
+        const autoSaveCheckbox = $('#auto-save-checkbox');
 
         if (!manualContainer || !autoContainer || !autoSaveCheckbox) return;
 
@@ -3424,8 +3236,8 @@
 
           if (statDataForRender) {
               const date = new Date(saveData.timestamp).toLocaleString('zh-CN');
-              const jingjie = this.SafeGetValue(statDataForRender, '当前境界.0', '未知');
-              const jinian = this.SafeGetValue(statDataForRender, '当前时间纪年.0', '未知');
+              const jingjie = GuixuHelpers.safeGetValue(statDataForRender, '当前境界.0', '未知');
+              const jinian = GuixuHelpers.safeGetValue(statDataForRender, '当前时间纪年.0', '未知');
               const summary = this._getDisplayText(saveData.message_content);
               const saveName = saveData.save_name || (isAutoSave ? `自动存档 (${slotId.slice(-1)})` : `存档 ${slotId.split('_')[1]}`);
               
@@ -3461,7 +3273,8 @@
       },
 
       bindSaveSlotListeners() {
-        const container = document.querySelector('#save-load-modal .modal-body');
+        const { $ } = GuixuDOM;
+        const container = $('#save-load-modal .modal-body');
         if (!container) {
           console.error('[归墟存档] 找不到存档模态框主体元素');
           return;
@@ -3554,7 +3367,7 @@
               past_lives_entry_name: savePastLivesEntryName
             };
 
-            const allLorebookEntries = await TavernHelper.getLorebookEntries(bookName);
+            const allLorebookEntries = await GuixuAPI.getLorebookEntries(bookName);
             const journeyEntry = allLorebookEntries.find(entry => entry.comment === journeyKey);
             const pastLivesEntry = allLorebookEntries.find(entry => entry.comment === pastLivesKey);
             
@@ -3570,7 +3383,7 @@
               keys: [savePastLivesEntryName], enabled: false, position: 'before_character_definition', order: 19
             });
             
-            await TavernHelper.createLorebookEntries(bookName, entriesToCreate);
+            await GuixuAPI.createLorebookEntries(bookName, entriesToCreate);
             
             const saveDataPayload = {
               timestamp: new Date().toISOString(),
@@ -3625,13 +3438,13 @@
             // --- 新逻辑：从独立世界书恢复到当前序号 ---
             if (saveData.lorebook_entries) {
               const entries = saveData.lorebook_entries;
-              const bookName = '1归墟';
+              const bookName = GuixuConstants.LOREBOOK.NAME;
               const currentIndex = this.unifiedIndex;
-              const currentJourneyKey = currentIndex > 1 ? `本世历程(${currentIndex})` : '本世历程';
-              const currentPastLivesKey = currentIndex > 1 ? `往世涟漪(${currentIndex})` : '往世涟漪';
+              const currentJourneyKey = currentIndex > 1 ? `${GuixuConstants.LOREBOOK.ENTRIES.JOURNEY}(${currentIndex})` : GuixuConstants.LOREBOOK.ENTRIES.JOURNEY;
+              const currentPastLivesKey = currentIndex > 1 ? `${GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES}(${currentIndex})` : GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES;
 
               try {
-                const allEntries = await TavernHelper.getLorebookEntries(bookName);
+                const allEntries = await GuixuAPI.getLorebookEntries(bookName);
                 
                 // 查找存档的独立世界书条目
                 const saveJourneyEntry = allEntries.find(entry => entry.comment === entries.journey_entry_name);
@@ -3655,7 +3468,7 @@
                     console.log(`[归墟读档] 更新本世历程条目，内容长度: ${contentToRestore.length}`);
                   } else {
                     // 创建新条目
-                    await TavernHelper.createLorebookEntries(bookName, [{
+                    await GuixuAPI.createLorebookEntries(bookName, [{
                       comment: currentJourneyKey,
                       content: contentToRestore,
                       keys: [currentJourneyKey],
@@ -3679,7 +3492,7 @@
                     console.log(`[归墟读档] 更新往世涟漪条目，内容长度: ${contentToRestore.length}`);
                   } else {
                     // 创建新条目
-                    await TavernHelper.createLorebookEntries(bookName, [{
+                    await GuixuAPI.createLorebookEntries(bookName, [{
                       comment: currentPastLivesKey,
                       content: contentToRestore,
                       keys: [currentPastLivesKey],
@@ -3693,7 +3506,7 @@
                 
                 // 批量更新现有条目
                 if (entriesToUpdate.length > 0) {
-                  await TavernHelper.setLorebookEntries(bookName, entriesToUpdate);
+                  await GuixuAPI.setLorebookEntries(bookName, entriesToUpdate);
                 }
                 
                 console.log(`[归墟读档] 已将存档"${saveName}"的世界书数据覆写到当前序号 ${currentIndex}`);
@@ -3705,7 +3518,7 @@
             }
             // --- 新逻辑结束 ---
 
-            await TavernHelper.setChatMessages([messageZero], { refresh: 'all' });
+            await GuixuAPI.setChatMessages([messageZero], { refresh: 'all' });
             
             await this.loadAndDisplayCurrentScene(loadedMessageContent);
             await this.init();
@@ -3752,11 +3565,11 @@
       async deleteLorebookBackup(saveData) {
         if (!saveData || !saveData.lorebook_entries) return;
 
-        const bookName = '1归墟';
+        const bookName = GuixuConstants.LOREBOOK.NAME;
         const { journey_entry_name, past_lives_entry_name } = saveData.lorebook_entries;
 
         try {
-          const allEntries = await TavernHelper.getLorebookEntries(bookName);
+          const allEntries = await GuixuAPI.getLorebookEntries(bookName);
           const entriesToDelete = [];
           
           const journeyEntry = allEntries.find(e => e.comment === journey_entry_name);
@@ -3766,7 +3579,7 @@
           if (pastLivesEntry) entriesToDelete.push(pastLivesEntry.uid);
 
           if (entriesToDelete.length > 0) {
-            await TavernHelper.deleteLorebookEntries(bookName, entriesToDelete);
+            await GuixuAPI.deleteLorebookEntries(bookName, entriesToDelete);
             console.log(`[归墟删除] 已删除 ${entriesToDelete.length} 个关联的世界书条目。`);
           }
         } catch (error) {
@@ -3855,11 +3668,10 @@
       },
 
       _downloadJSON(data, fileName) {
+        const { h } = GuixuDOM;
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
+        const a = h('a', { href: url, download: fileName });
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -3867,145 +3679,123 @@
       },
 
       async promptForSlotSelection(importName) {
-          return new Promise(resolve => {
-              const modal = document.createElement('div');
-              modal.className = 'modal-overlay';
-              modal.style.display = 'flex';
-              modal.style.zIndex = '2001'; // Higher than save/load modal
-              let slotsHtml = '';
-              for (let i = 1; i <= 5; i++) {
-                  slotsHtml += `<button class="interaction-btn slot-select-btn" data-slot-id="slot_${i}">存档位 ${i}</button>`;
+        const { h, $ } = GuixuDOM;
+        return new Promise(resolve => {
+          const container = $('.guixu-root-container');
+          if (!container) {
+            console.error('[归墟存档] 找不到根容器');
+            return resolve(null);
+          }
+
+          const slotButtons = [];
+          for (let i = 1; i <= 5; i++) {
+            slotButtons.push(
+              h('button', {
+                className: 'interaction-btn slot-select-btn',
+                'data-slot-id': `slot_${i}`,
+                textContent: `存档位 ${i}`,
+              })
+            );
+          }
+
+          const modal = h('div', { className: 'modal-overlay', style: 'display: flex; z-index: 2001;' }, [
+            h('div', { className: 'modal-content', style: 'width: 450px; height: auto;' }, [
+              h('div', { className: 'modal-header' }, [
+                h('h2', { className: 'modal-title' }, ['选择导入位置'])
+              ]),
+              h('div', { className: 'modal-body', style: 'padding: 20px;' }, [
+                h('p', { style: 'margin-bottom: 20px;' }, [`请选择一个存档位以导入 "${importName}":`]),
+                h('div', { style: 'display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;' }, slotButtons),
+                h('div', { style: 'text-align: right; margin-top: 25px;' }, [
+                  h('button', { id: 'import-cancel-btn', className: 'interaction-btn', textContent: '取消' })
+                ])
+              ])
+            ])
+          ]);
+          
+          modal.addEventListener('click', (e) => {
+              if (e.target.classList.contains('slot-select-btn')) {
+                  const slotId = e.target.dataset.slotId;
+                  modal.remove();
+                  resolve(slotId);
+              } else if (e.target.id === 'import-cancel-btn' || e.target === modal) {
+                  modal.remove();
+                  resolve(null);
               }
-              modal.innerHTML = `
-          <div class="modal-content" style="width: 450px; height: auto;">
-            <div class="modal-header">
-              <h2 class="modal-title">选择导入位置</h2>
-            </div>
-            <div class="modal-body" style="padding: 20px;">
-              <p style="margin-bottom: 20px;">请选择一个存档位以导入 "${importName}":</p>
-              <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;">
-                ${slotsHtml}
-              </div>
-              <div style="text-align: right; margin-top: 25px;">
-                 <button id="import-cancel-btn" class="interaction-btn">取消</button>
-              </div>
-            </div>
-          </div>
-        `;
-              document.querySelector('.guixu-root-container').appendChild(modal);
-              modal.addEventListener('click', (e) => {
-                  if (e.target.classList.contains('slot-select-btn')) {
-                      const slotId = e.target.dataset.slotId;
-                      modal.remove();
-                      resolve(slotId);
-                  } else if (e.target.id === 'import-cancel-btn' || e.target === modal) {
-                      modal.remove();
-                      resolve(null);
-                  }
-              });
           });
+
+          container.appendChild(modal);
+        });
       },
 
       // --- 新增：存档命名输入框 ---
       async promptForSaveName(slotId) {
-        console.log('[归墟存档] 显示存档命名对话框');
+        const { h, $, $$ } = GuixuDOM;
         return new Promise((resolve) => {
-          try {
-            // 创建模态框
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay';
-            modal.style.display = 'flex';
-            modal.style.zIndex = '2000'; // 确保在最顶层
-            modal.innerHTML = `
-              <div class="modal-content" style="width: 400px; height: auto; max-height: none;">
-                <div class="modal-header">
-                  <h2 class="modal-title">存档命名</h2>
-                </div>
-                <div class="modal-body" style="padding: 20px;">
-                  <p style="margin-bottom: 15px; color: #c9aa71;">请为存档位 ${slotId.split('_')[1]} 输入一个名称：</p>
-                  <input type="text" id="save-name-input" placeholder="例如：突破金丹期"
-                         style="width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355;
-                                color: #e0dcd1; border-radius: 4px; font-size: 14px; margin-bottom: 15px;">
-                  <p style="font-size: 12px; color: #8b7355; margin-bottom: 20px;">
-                    将创建世界书条目：<br>
-                    • <span id="preview-journey">存档名-本世历程</span><br>
-                    • <span id="preview-past-lives">存档名-往世涟漪</span>
-                  </p>
-                  <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button id="save-name-cancel" class="interaction-btn">取消</button>
-                    <button id="save-name-confirm" class="interaction-btn primary-btn">确认</button>
-                  </div>
-                </div>
-              </div>
-            `;
+          const container = $('.guixu-root-container');
+          if (!container) {
+            console.error('[归墟存档] 找不到根容器');
+            return resolve(null);
+          }
 
-            const container = document.querySelector('.guixu-root-container');
-            if (!container) {
-              console.error('[归墟存档] 找不到根容器');
-              resolve(null);
-              return;
-            }
-            container.appendChild(modal);
-
-            const input = modal.querySelector('#save-name-input');
-            const previewJourney = modal.querySelector('#preview-journey');
-            const previewPastLives = modal.querySelector('#preview-past-lives');
-            const confirmBtn = modal.querySelector('#save-name-confirm');
-            const cancelBtn = modal.querySelector('#save-name-cancel');
-
-            if (!input || !confirmBtn || !cancelBtn) {
-              console.error('[归墟存档] 模态框元素创建失败');
-              modal.remove();
-              resolve(null);
-              return;
-            }
-
-            // 实时更新预览
-            input.addEventListener('input', () => {
+          const previewJourney = h('span', { id: 'preview-journey' }, ['存档名-本世历程']);
+          const previewPastLives = h('span', { id: 'preview-past-lives' }, ['存档名-往世涟漪']);
+          const input = h('input', {
+            type: 'text',
+            id: 'save-name-input',
+            placeholder: '例如：突破金丹期',
+            style: 'width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; font-size: 14px; margin-bottom: 15px;',
+            oninput: () => {
               const name = input.value.trim() || '存档名';
-              if (previewJourney) previewJourney.textContent = `${name}-本世历程`;
-              if (previewPastLives) previewPastLives.textContent = `${name}-往世涟漪`;
-            });
+              previewJourney.textContent = `${name}-本世历程`;
+              previewPastLives.textContent = `${name}-往世涟漪`;
+            },
+            onkeypress: (e) => {
+              if (e.key === 'Enter') confirmBtn.click();
+            }
+          });
 
-            // 确认按钮
-            confirmBtn.addEventListener('click', () => {
+          const confirmBtn = h('button', {
+            id: 'save-name-confirm',
+            className: 'interaction-btn primary-btn',
+            textContent: '确认',
+            onclick: () => {
               const saveName = input.value.trim();
               if (!saveName) {
                 this.showTemporaryMessage('请输入存档名称');
                 return;
               }
-              console.log('[归墟存档] 用户输入存档名称:', saveName);
               modal.remove();
               resolve(saveName);
-            });
+            }
+          });
 
-            // 取消按钮
-            cancelBtn.addEventListener('click', () => {
-              console.log('[归墟存档] 用户取消存档');
+          const cancelBtn = h('button', {
+            id: 'save-name-cancel',
+            className: 'interaction-btn',
+            textContent: '取消',
+            onclick: () => {
               modal.remove();
               resolve(null);
-            });
+            }
+          });
 
-            // 回车确认
-            input.addEventListener('keypress', (e) => {
-              if (e.key === 'Enter') {
-                confirmBtn.click();
-              }
-            });
+          const modal = h('div', { className: 'modal-overlay', style: 'display: flex; z-index: 2000;' }, [
+            h('div', { className: 'modal-content', style: 'width: 400px; height: auto; max-height: none;' }, [
+              h('div', { className: 'modal-header' }, [h('h2', { className: 'modal-title' }, ['存档命名'])]),
+              h('div', { className: 'modal-body', style: 'padding: 20px;' }, [
+                h('p', { style: 'margin-bottom: 15px; color: #c9aa71;' }, [`请为存档位 ${slotId.split('_')[1]} 输入一个名称：`]),
+                input,
+                h('p', { style: 'font-size: 12px; color: #8b7355; margin-bottom: 20px;' }, [
+                  '将创建世界书条目：', h('br'), '• ', previewJourney, h('br'), '• ', previewPastLives
+                ]),
+                h('div', { style: 'display: flex; gap: 10px; justify-content: flex-end;' }, [cancelBtn, confirmBtn])
+              ])
+            ])
+          ]);
 
-            // 自动聚焦
-            setTimeout(() => {
-              try {
-                input.focus();
-              } catch (e) {
-                console.warn('[归墟存档] 自动聚焦失败:', e);
-              }
-            }, 100);
-
-          } catch (error) {
-            console.error('[归墟存档] 创建存档命名对话框时出错:', error);
-            resolve(null);
-          }
+          container.appendChild(modal);
+          setTimeout(() => input.focus(), 100);
         });
       },
 
@@ -4105,7 +3895,7 @@
           localStorage.setItem('guixu_multi_save_data', JSON.stringify(allSaves));
           
           this.showTemporaryMessage(`已自动存档`);
-          if (document.getElementById('save-load-modal').style.display === 'flex') {
+          if ($('#save-load-modal').style.display === 'flex') {
             this.showSaveLoadManager();
           }
         } catch (error) {
@@ -4123,13 +3913,14 @@
       },
 
       loadAutoSaveState() {
+        const { $ } = GuixuDOM;
         try {
           const savedState = localStorage.getItem('guixu_auto_save_enabled');
           // 如果localStorage中没有保存过状态，则默认为 false (关闭)
           this.isAutoSaveEnabled = savedState === 'true';
           console.log(`[归墟存档] 加载自动存档状态: ${this.isAutoSaveEnabled}`);
 
-          const checkbox = document.getElementById('auto-save-checkbox');
+          const checkbox = $('#auto-save-checkbox');
           if (checkbox) {
             checkbox.checked = this.isAutoSaveEnabled;
           }
@@ -4164,9 +3955,9 @@
 
       async renameLorebookEntry(oldName, newName) {
         if (!oldName || !newName || oldName === newName) return;
-        const bookName = '1归墟';
+        const bookName = GuixuConstants.LOREBOOK.NAME;
         try {
-          const allEntries = await TavernHelper.getLorebookEntries(bookName);
+          const allEntries = await GuixuAPI.getLorebookEntries(bookName);
           const oldEntry = allEntries.find(e => e.comment === oldName);
           if (!oldEntry) {
             console.warn(`[重命名] 未找到旧条目: ${oldName}`);
@@ -4179,9 +3970,9 @@
           newEntryData.comment = newName;
           newEntryData.keys = [newName]; // 更新关键字
 
-          await TavernHelper.createLorebookEntries(bookName, [newEntryData]);
+          await GuixuAPI.createLorebookEntries(bookName, [newEntryData]);
           // 成功创建新条目后，删除旧条目
-          await TavernHelper.deleteLorebookEntries(bookName, [oldEntry.uid]);
+          await GuixuAPI.deleteLorebookEntries(bookName, [oldEntry.uid]);
           console.log(`[重命名] 成功将 "${oldName}" 重命名为 "${newName}"`);
         } catch (error) {
           console.error(`重命名世界书条目从 "${oldName}" 到 "${newName}" 时失败:`, error);
@@ -4192,15 +3983,17 @@
 
       // --- 新增：自动化系统修剪功能 ---
       showTrimJourneyModal() {
+        const { $ } = GuixuDOM;
         this.openModal('trim-journey-modal');
-        const indexInput = document.getElementById('trim-journey-index-input');
+        const indexInput = $('#trim-journey-index-input');
         if (indexInput) {
             indexInput.value = this.unifiedIndex;
         }
       },
 
       async trimJourneyAutomation(isAuto = false) {
-        const indexInput = document.getElementById('trim-journey-index-input');
+        const { $ } = GuixuDOM;
+        const indexInput = $('#trim-journey-index-input');
         const index = indexInput ? parseInt(indexInput.value, 10) : this.unifiedIndex;
         
         if (isNaN(index) || index <= 0) {
@@ -4208,15 +4001,15 @@
             return;
         }
 
-        const bookName = '1归墟';
-        const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
+        const bookName = GuixuConstants.LOREBOOK.NAME;
+        const journeyKey = index > 1 ? `${GuixuConstants.LOREBOOK.ENTRIES.JOURNEY}(${index})` : GuixuConstants.LOREBOOK.ENTRIES.JOURNEY;
 
         if (!isAuto) {
             this.showWaitingMessage();
         }
 
         try {
-            const allEntries = await TavernHelper.getLorebookEntries(bookName);
+            const allEntries = await GuixuAPI.getLorebookEntries(bookName);
             const journeyEntry = allEntries.find(entry => entry.comment === journeyKey);
 
             if (!journeyEntry || !journeyEntry.content) {
@@ -4230,7 +4023,7 @@
                return;
             }
 
-            await TavernHelper.setLorebookEntries(bookName, [{ uid: journeyEntry.uid, content: trimmedContent }]);
+            await GuixuAPI.setLorebookEntries(bookName, [{ uid: journeyEntry.uid, content: trimmedContent }]);
             
             if (!isAuto) {
                 this.showTemporaryMessage(`“${journeyKey}”已成功修剪。`);
@@ -4299,11 +4092,12 @@
       },
 
       loadAutoTrimState() {
+        const { $ } = GuixuDOM;
         try {
           const savedState = localStorage.getItem('guixu_auto_trim_enabled');
           this.isAutoTrimEnabled = savedState === 'true';
           console.log(`[归墟] 加载自动修剪状态: ${this.isAutoTrimEnabled}`);
-          const checkbox = document.getElementById('auto-trim-checkbox');
+          const checkbox = $('#auto-trim-checkbox');
            if (checkbox) {
                checkbox.checked = this.isAutoTrimEnabled;
            }
