@@ -1257,9 +1257,9 @@
                     <p><strong>品阶:</strong> ${tierDisplay}</p>
                     <p><i>${this.SafeGetValue(item, 'description', '无描述')}</i></p>
                     ${attributesHtml
-        ? `<div class="tooltip-section tooltip-attributes">${attributesHtml}</div>`
-        : ''
-      }
+          ? `<div class="tooltip-section tooltip-attributes">${attributesHtml}</div>`
+          : ''
+        }
                     ${effectsHtml ? `<div class="tooltip-section">${effectsHtml}</div>` : ''}
                 `;
     },
@@ -3946,7 +3946,7 @@
           updatePreview();
 
           const cleanup = (result) => {
-            try { modal.remove(); } catch (e) {}
+            try { modal.remove(); } catch (e) { }
             resolve(result);
           };
 

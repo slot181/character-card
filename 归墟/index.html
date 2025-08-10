@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <!-- 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享 -->
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>归墟 - 宿命轮回</title>
-  <link rel="stylesheet" href="guixu.css" />
+  <link rel="stylesheet" href="https://sparkling-hummingbird-1a2fc4.netlify.app/%E5%BD%92%E5%A2%9F/css/guixu.css" />
 </head>
+
 <body>
   <!-- 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享 -->
   <div class="guixu-root-container">
@@ -106,11 +108,12 @@
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <label for="unified-index-input" style="font-size: 11px; color: #8b7355;">读写序号:</label>
               <input type="number" id="unified-index-input" value="1" min="1"
-                     style="width: 60px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 4px; font-size: 12px;">
+                style="width: 60px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 4px; font-size: 12px;">
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
               <input type="checkbox" id="auto-toggle-lorebook-checkbox" style="cursor: pointer;">
-              <label for="auto-toggle-lorebook-checkbox" class="auto-write-label" style="font-size: 11px;">自动开关世界书</label>
+              <label for="auto-toggle-lorebook-checkbox" class="auto-write-label"
+                style="font-size: 11px;">自动开关世界书</label>
             </div>
           </div>
         </div>
@@ -119,8 +122,10 @@
         <div class="world-line-section">
           <div class="world-line-title">世界线回顾</div>
           <div style="display: flex; gap: 10px; justify-content: center;">
-            <button id="btn-view-journey-main" class="interaction-btn primary-btn" style="flex-grow: 1; white-space: nowrap;">本世历程</button>
-            <button id="btn-view-past-lives-main" class="interaction-btn primary-btn" style="flex-grow: 1; white-space: nowrap;">往世涟漪</button>
+            <button id="btn-view-journey-main" class="interaction-btn primary-btn"
+              style="flex-grow: 1; white-space: nowrap;">本世历程</button>
+            <button id="btn-view-past-lives-main" class="interaction-btn primary-btn"
+              style="flex-grow: 1; white-space: nowrap;">往世涟漪</button>
           </div>
         </div>
       </div>
@@ -168,7 +173,8 @@
       <div class="modal-content">
         <div class="modal-header">
           <h2 id="history-modal-title" class="modal-title">历史回顾</h2>
-          <div id="history-modal-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;"></div>
+          <div id="history-modal-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
+          </div>
           <button class="modal-close-btn" style="margin-left: 15px;">&times;</button>
         </div>
         <div id="history-modal-body" class="modal-body"><!-- 动态填充 --></div>
@@ -187,7 +193,8 @@
           <button id="btn-refresh-storage" class="interaction-btn">刷新缓存</button>
           <div>
             <button id="btn-clear-commands" class="interaction-btn">清空指令</button>
-            <button id="btn-execute-commands" class="interaction-btn primary-btn" style="margin-left: 10px">执行指令</button>
+            <button id="btn-execute-commands" class="interaction-btn primary-btn"
+              style="margin-left: 10px">执行指令</button>
           </div>
         </div>
       </div>
@@ -205,33 +212,41 @@
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>本世历程</span>
-              <button id="btn-write-journey" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-journey" class="interaction-btn"
+                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-journey" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-journey"
+              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </div>
 
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>往世涟漪</span>
-              <button id="btn-write-past-lives" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-past-lives" class="interaction-btn"
+                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-past-lives" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-past-lives"
+              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </div>
 
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>小说模式</span>
-              <button id="btn-write-novel-mode" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-novel-mode" class="interaction-btn"
+                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-novel-mode" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">小说模式已关闭</pre>
+            <pre id="extracted-novel-mode"
+              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">小说模式已关闭</pre>
           </div>
 
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>提取角色</span>
-              <button id="btn-write-character-card" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-character-card" class="interaction-btn"
+                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-character-card" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-character-card"
+              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </div>
 
           <div class="auto-write-section">
@@ -245,7 +260,8 @@
             <summary class="section-title" style="cursor: pointer; list-style: none">
               <span>本次变量改变</span>
             </summary>
-            <pre id="extracted-variable-changes" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-variable-changes"
+              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </details>
         </div>
       </div>
@@ -310,7 +326,9 @@
             </div>
           </div>
           <div id="auto-save-slot-container" style="margin-bottom: 15px;"></div>
-          <h3 style="font-size: 14px; color: #8b7355; margin-top: 20px; margin-bottom: 10px; border-top: 1px solid rgba(201, 170, 113, 0.3); padding-top: 15px;">手动存档</h3>
+          <h3
+            style="font-size: 14px; color: #8b7355; margin-top: 20px; margin-bottom: 10px; border-top: 1px solid rgba(201, 170, 113, 0.3); padding-top: 15px;">
+            手动存档</h3>
           <div id="save-slots-container"></div>
         </div>
       </div>
@@ -349,6 +367,7 @@
     <input type="file" id="import-file-input" style="display: none;" accept=".json" />
   </div>
 
-  <script src="guixu.js"></script>
+  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/%E5%BD%92%E5%A2%9F/js/guixu.js"></script>
 </body>
+
 </html>
