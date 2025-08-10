@@ -64,7 +64,7 @@
     autoSaveIntervalId: null, // 新增：自动存档计时器ID
     isAutoTrimEnabled: false, // 新增：自动修剪状态
     // --- 新增：处理所有动作的核心函数 ---
-    waitingMessages: [
+    waitingMessages: (window.GuixuConstants && GuixuConstants.WAITING_MESSAGES) || [
       '呜呜呜呜伟大的梦星大人啊，请给你虔诚的信徒{{user}}回复吧......',
       '梦星大人，我们敬爱你口牙！！请给我回复吧！！',
       '梦星大人正在回应你的请求，七个工作日给你回复',
@@ -1892,9 +1892,10 @@
       body.innerHTML =
         '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在读取命运之卷...</p>';
       try {
-        const bookName = '1归墟';
+        const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
         const index = this.unifiedIndex;
-        const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
+        const journeyName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+        const journeyKey = index > 1 ? `${journeyName}(${index})` : journeyName;
         const allEntries = await TavernHelper.getLorebookEntries(bookName);
         const journeyEntry = allEntries.find(entry => entry.comment === journeyKey);
 
@@ -1922,9 +1923,10 @@
       body.innerHTML =
         '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在回溯时光长河...</p>';
       try {
-        const bookName = '1归墟';
+        const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
         const index = this.unifiedIndex;
-        const pastLivesKey = index > 1 ? `往世涟漪(${index})` : '往世涟漪';
+        const pastLivesName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
+        const pastLivesKey = index > 1 ? `${pastLivesName}(${index})` : pastLivesName;
         const allEntries = await TavernHelper.getLorebookEntries(bookName);
         const pastLivesEntry = allEntries.find(entry => entry.comment === pastLivesKey);
 
@@ -2182,17 +2184,17 @@
     // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
     async writeJourneyToLorebook(silent = false) {
       const content = this.lastExtractedJourney;
-      await this.writeToLorebook('本世历程', content, silent);
+      await this.writeToLorebook(((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程'), content, silent);
     },
 
     async writePastLivesToLorebook(silent = false) {
       const content = this.lastExtractedPastLives;
-      await this.writeToLorebook('往世涟漪', content, silent);
+      await this.writeToLorebook(((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪'), content, silent);
     },
 
     async writeNovelModeToLorebook(silent = false) {
       const content = this.lastExtractedNovelText;
-      await this.writeToLorebook('小说模式', content, silent);
+      await this.writeToLorebook(((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.NOVEL_MODE) || '小说模式'), content, silent);
     },
 
     // 最终版：重构写入逻辑，支持动态索引和条目创建
@@ -2204,15 +2206,17 @@
 
       const index = this.unifiedIndex;
       const finalEntryKey = index > 1 ? `${baseEntryKey}(${index})` : baseEntryKey;
-      const bookName = '1归墟';
+      const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
       let reformattedContent = contentToWrite.trim();
       let buttonId;
 
       // 内容格式化
-      if (baseEntryKey === '本世历程' || baseEntryKey === '往世涟漪') {
+      if (baseEntryKey === ((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程') ||
+          baseEntryKey === ((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪')) {
         const journeyFields = ['序号', '日期', '标题', '描述', '标签', '自动化系统'];
         const pastLivesFields = ['第x世', '事件脉络', '本世概述', '本世成就', '本世获得物品', '本世人物关系网', '死亡原因', '本世总结', '本世评价'];
-        const fields = baseEntryKey === '本世历程' ? journeyFields : pastLivesFields;
+        const journeyNameConst = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+        const fields = baseEntryKey === journeyNameConst ? journeyFields : pastLivesFields;
         const parsedData = this.parseJourneyEntry(contentToWrite)[0] || {};
 
         if (Object.keys(parsedData).length === 0) {
@@ -2220,8 +2224,8 @@
           return;
         }
         reformattedContent = fields.map(key => (parsedData[key] ? `${key}|${parsedData[key]}` : null)).filter(Boolean).join('\n');
-        buttonId = baseEntryKey === '本世历程' ? 'btn-write-journey' : 'btn-write-past-lives';
-      } else if (baseEntryKey === '小说模式') {
+        buttonId = baseEntryKey === ((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程') ? 'btn-write-journey' : 'btn-write-past-lives';
+      } else if (baseEntryKey === ((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.NOVEL_MODE) || '小说模式')) {
         buttonId = 'btn-write-novel-mode';
       }
 
@@ -2236,7 +2240,7 @@
           const existingContent = targetEntry.content || '';
           let isDuplicate = false;
 
-          if (baseEntryKey === '本世历程') {
+          if (baseEntryKey === journeyNameConst) {
             const getSeq = (text) => {
               if (!text) return null;
               const match = text.match(/^序号\|(\d+)/);
@@ -2263,7 +2267,7 @@
           let updatedContent = existingContent + (existingContent ? '\n\n' : '') + reformattedContent;
 
           // 核心修复：在合并内容后、写入之前执行修剪
-          if (baseEntryKey === '本世历程' && this.isAutoTrimEnabled) {
+          if (baseEntryKey === journeyNameConst && this.isAutoTrimEnabled) {
             console.log('[归墟] 自动修剪已开启，正在处理合并后的内容...');
             updatedContent = this._getTrimmedJourneyContent(updatedContent);
           }
@@ -2286,8 +2290,9 @@
         }
 
         // 更新状态变量以防轮询重复写入
-        if (baseEntryKey === '本世历程') this.lastWrittenJourney = contentToWrite;
-        if (baseEntryKey === '往世涟漪') this.lastWrittenPastLives = contentToWrite;
+        const pastLivesNameConst = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
+        if (baseEntryKey === journeyNameConst) this.lastWrittenJourney = contentToWrite;
+        if (baseEntryKey === pastLivesNameConst) this.lastWrittenPastLives = contentToWrite;
         if (baseEntryKey === '小说模式') this.lastWrittenNovelText = contentToWrite;
 
       } catch (error) {
@@ -2327,7 +2332,7 @@
           throw new Error('无法从提取内容中找到角色“姓名”。');
         }
 
-        const bookName = '1归墟';
+        const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
         const allEntries = await TavernHelper.getLorebookEntries(bookName);
         const existingEntry = allEntries.find(entry => entry.comment === characterName);
 
@@ -2364,8 +2369,8 @@
         console.warn('[归墟] 尝试向“当前场景”写入空内容，操作已取消。');
         return;
       }
-      const bookName = '1归墟';
-      const sceneKey = '当前场景';
+      const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
+      const sceneKey = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.CURRENT_SCENE) || '当前场景';
       try {
         const allEntries = await TavernHelper.getLorebookEntries(bookName);
         const sceneEntry = allEntries.find(entry => entry.comment === sceneKey);
@@ -2661,10 +2666,12 @@
 
     // --- 新增：自动开关世界书轮询逻辑 (V2: 增加条目自动创建) ---
     async updateAutoToggledEntries(andDisableAll = false) {
-      const bookName = '1归墟';
+      const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
       const index = this.unifiedIndex;
-      const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
-      const pastLivesKey = index > 1 ? `往世涟漪(${index})` : '往世涟漪';
+      const journeyName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+      const pastLivesName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
+      const journeyKey = index > 1 ? `${journeyName}(${index})` : journeyName;
+      const pastLivesKey = index > 1 ? `${pastLivesName}(${index})` : pastLivesName;
 
       try {
         let allEntries = await TavernHelper.getLorebookEntries(bookName);
@@ -2715,8 +2722,8 @@
 
         const entriesToUpdate = [];
         for (const entry of allEntries) {
-          const isJourneyEntry = entry.comment.startsWith('本世历程');
-          const isPastLivesEntry = entry.comment.startsWith('往世涟漪');
+          const isJourneyEntry = entry.comment.startsWith(journeyName);
+          const isPastLivesEntry = entry.comment.startsWith(pastLivesName);
 
           if (!isJourneyEntry && !isPastLivesEntry) {
             continue;
@@ -3468,10 +3475,12 @@
           }
 
           // 创建独立的世界书条目
-          const bookName = '1归墟';
+          const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
           const index = this.unifiedIndex;
-          const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
-          const pastLivesKey = index > 1 ? `往世涟漪(${index})` : '往世涟漪';
+          const journeyName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+          const pastLivesName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
+          const journeyKey = index > 1 ? `${journeyName}(${index})` : journeyName;
+          const pastLivesKey = index > 1 ? `${pastLivesName}(${index})` : pastLivesName;
 
           const saveJourneyEntryName = `${saveName}-本世历程`;
           const savePastLivesEntryName = `${saveName}-往世涟漪`;
@@ -3552,10 +3561,12 @@
           // --- 新逻辑：从独立世界书恢复到当前序号 ---
           if (saveData.lorebook_entries) {
             const entries = saveData.lorebook_entries;
-            const bookName = '1归墟';
+            const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
             const currentIndex = this.unifiedIndex;
-            const currentJourneyKey = currentIndex > 1 ? `本世历程(${currentIndex})` : '本世历程';
-            const currentPastLivesKey = currentIndex > 1 ? `往世涟漪(${currentIndex})` : '往世涟漪';
+            const journeyName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+            const pastLivesName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
+            const currentJourneyKey = currentIndex > 1 ? `${journeyName}(${currentIndex})` : journeyName;
+            const currentPastLivesKey = currentIndex > 1 ? `${pastLivesName}(${currentIndex})` : pastLivesName;
 
             try {
               const allEntries = await TavernHelper.getLorebookEntries(bookName);
@@ -3679,7 +3690,7 @@
     async deleteLorebookBackup(saveData) {
       if (!saveData || !saveData.lorebook_entries) return;
 
-      const bookName = '1归墟';
+      const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
       const { journey_entry_name, past_lives_entry_name } = saveData.lorebook_entries;
 
       try {
@@ -3981,10 +3992,12 @@
           currentMessageContent = messages?.[0]?.message || '';
         } catch (e) { /* ignore */ }
 
-        const bookName = '1归墟';
+        const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
         const index = this.unifiedIndex;
-        const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
-        const pastLivesKey = index > 1 ? `往世涟漪(${index})` : '往世涟漪';
+        const journeyName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+        const pastLivesName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
+        const journeyKey = index > 1 ? `${journeyName}(${index})` : journeyName;
+        const pastLivesKey = index > 1 ? `${pastLivesName}(${index})` : pastLivesName;
 
         const saveJourneyEntryName = `${newSaveName}-本世历程`;
         const savePastLivesEntryName = `${newSaveName}-往世涟漪`;
@@ -4072,7 +4085,7 @@
 
     async renameLorebookEntry(oldName, newName) {
       if (!oldName || !newName || oldName === newName) return;
-      const bookName = '1归墟';
+      const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
       try {
         const allEntries = await TavernHelper.getLorebookEntries(bookName);
         const oldEntry = allEntries.find(e => e.comment === oldName);
@@ -4113,8 +4126,9 @@
         return;
       }
 
-      const bookName = '1归墟';
-      const journeyKey = index > 1 ? `本世历程(${index})` : '本世历程';
+      const bookName = (window.GuixuConstants && GuixuConstants.LOREBOOK.NAME) || '1归墟';
+      const journeyName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+      const journeyKey = index > 1 ? `${journeyName}(${index})` : journeyName;
 
       if (!isAuto) {
         this.showWaitingMessage();
