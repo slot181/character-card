@@ -64,6 +64,7 @@
     autoSaveIntervalId: null, // 新增：自动存档计时器ID
     isAutoTrimEnabled: false, // 新增：自动修剪状态
     // --- 新增：处理所有动作的核心函数 ---
+    modals: {}, // 新增：用于存储所有模态框实例
     waitingMessages: (window.GuixuConstants && GuixuConstants.WAITING_MESSAGES) || [
       '呜呜呜呜伟大的梦星大人啊，请给你虔诚的信徒{{user}}回复吧......',
       '梦星大人，我们敬爱你口牙！！请给我回复吧！！',
@@ -153,8 +154,26 @@
       return String(text);
     },
 
+    initModals() {
+      const modalIds = [
+        'inventory-modal', 'relationships-modal', 'history-modal',
+        'command-center-modal', 'extracted-content-modal', 'character-details-modal',
+        'guixu-system-modal', 'custom-confirm-modal', 'save-load-modal', 'trim-journey-modal'
+      ];
+      modalIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          const title = el.querySelector('.modal-title')?.textContent || '归墟';
+          this.modals[id] = new GuixuModal(id, title);
+          // Hide the original static modal from the DOM
+          el.style.display = 'none';
+        }
+      });
+    },
+
     async init() {
       console.log('归墟UI交互管理器初始化...');
+      this.initModals(); // 新增：初始化所有模态框
       this.bindStaticListeners();
       this.applyRandomBackground();
       await this.updateDynamicData(); // Initial data load
@@ -525,17 +544,16 @@
     // --- Modal Control ---
     async showGuixuSystem() {
       this.openModal('guixu-system-modal');
-      const body = document.querySelector('#guixu-system-modal .modal-body');
-      if (!body) return;
-      body.innerHTML =
-        '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在连接归墟...</p>';
+      const modal = this.modals['guixu-system-modal'];
+      if (!modal) return;
+      const body = modal.getBody();
+      modal.renderBody('<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在连接归墟...</p>');
 
       try {
         const messages = await getChatMessages(getCurrentMessageId());
         const stat_data = messages?.[0]?.data?.stat_data;
         if (!stat_data) {
-          body.innerHTML =
-            '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法连接归墟。</p>';
+          modal.renderBody('<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法连接归墟。</p>');
           return;
         }
 
@@ -548,54 +566,72 @@
         const xinli = this.SafeGetValue(stat_data, '心理年龄', 'N/A');
         const xinliMax = this.SafeGetValue(stat_data, '心理年龄上限', 'N/A');
 
-        body.innerHTML = `
-                    <div class="panel-section">
-                        <div class="attributes-list">
-                            <div class="attribute-item"><span class="attribute-name">当前世数</span><span class="attribute-value">第 ${currentLife} 世</span></div>
-                            <div class="attribute-item"><span class="attribute-name">生理年龄</span><span class="attribute-value">${shengli} / ${shengliMax}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">心理年龄</span><span class="attribute-value">${xinli} / ${xinliMax}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">归墟空间</span><span class="attribute-value">${guixuSpace}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">本世抉择</span><span class="attribute-value">${currentChoice}</span></div>
-                            <div class="attribute-item" style="margin-top: 15px;"><span class="attribute-name">归墟充能</span><span class="attribute-value">${chargeTime}%</span></div>
-                            <div class="details-progress-bar">
-                                <div class="details-progress-fill" style="width: ${chargeTime}%; background: linear-gradient(90deg, #dc143c, #ff6b6b, #ffd700);"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="padding: 20px 10px; text-align: center;">
-                         <button id="btn-trigger-guixu" class="interaction-btn primary-btn" style="width: 80%; padding: 12px; font-size: 16px;">归 墟</button>
-                    </div>
-                `;
-
-        // 为动态添加的按钮绑定事件
-        document.getElementById('btn-trigger-guixu').addEventListener('click', () => {
-          if (chargeTime >= 100) {
-            this.showCustomConfirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。', async () => {
-              try {
-                const command = '{{user}}选择归墟，世界将回到最初的锚点';
-                await this.handleAction(command); // 改为调用 handleAction
-                this.showTemporaryMessage('轮回已开启...');
-                this.closeAllModals();
-              } catch (error) {
-                console.error('执行归墟指令时出错:', error);
-                this.showTemporaryMessage('执行归墟指令失败！');
-              }
-            });
-          } else {
-            this.showTemporaryMessage('归墟充能进度不足');
-          }
+        const contentEl = GuixuDOM.h('div', {
+          children: [
+            GuixuDOM.h('div', {
+              classNames: ['panel-section'],
+              children: [
+                GuixuDOM.h('div', {
+                  classNames: ['attributes-list'],
+                  children: [
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '当前世数' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: `第 ${currentLife} 世` })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '生理年龄' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: `${shengli} / ${shengliMax}` })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '心理年龄' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: `${xinli} / ${xinliMax}` })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '归墟空间' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: guixuSpace })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '本世抉择' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: currentChoice })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], style: 'margin-top: 15px;', children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '归墟充能' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: `${chargeTime}%` })] }),
+                    GuixuDOM.h('div', {
+                      classNames: ['details-progress-bar'],
+                      children: [GuixuDOM.h('div', { classNames: ['details-progress-fill'], style: `width: ${chargeTime}%; background: linear-gradient(90deg, #dc143c, #ff6b6b, #ffd700);` })]
+                    })
+                  ]
+                })
+              ]
+            }),
+            GuixuDOM.h('div', {
+              style: 'padding: 20px 10px; text-align: center;',
+              children: [
+                GuixuDOM.h('button', {
+                  id: 'btn-trigger-guixu',
+                  classNames: ['interaction-btn', 'primary-btn'],
+                  style: 'width: 80%; padding: 12px; font-size: 16px;',
+                  text: '归 墟',
+                  events: {
+                    click: () => {
+                      if (chargeTime >= 100) {
+                        this.showCustomConfirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。', async () => {
+                          try {
+                            const command = '{{user}}选择归墟，世界将回到最初的锚点';
+                            await this.handleAction(command);
+                            this.showTemporaryMessage('轮回已开启...');
+                            this.closeAllModals();
+                          } catch (error) {
+                            console.error('执行归墟指令时出错:', error);
+                            this.showTemporaryMessage('执行归墟指令失败！');
+                          }
+                        });
+                      } else {
+                        this.showTemporaryMessage('归墟充能进度不足');
+                      }
+                    }
+                  }
+                })
+              ]
+            })
+          ]
         });
+        modal.renderBody(contentEl);
       } catch (error) {
         console.error('加载归墟系统时出错:', error);
-        body.innerHTML =
-          '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载数据时出错。</p>';
+        modal.renderBody('<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载数据时出错。</p>');
       }
     },
 
     async showCharacterDetails() {
       this.openModal('character-details-modal');
-      const body = document.querySelector('#character-details-modal .modal-body');
-      if (!body) return;
+      const modal = this.modals['character-details-modal'];
+      if (!modal) return;
+      const body = modal.getBody();
       body.innerHTML =
         '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在加载角色数据...</p>';
 
@@ -607,7 +643,6 @@
             '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法加载角色数据。</p>';
           return;
         }
-
         // 确保 this.baseAttributes 和装备加成是最新的
         this.updateDisplayedAttributes();
 
@@ -625,115 +660,160 @@
         const xiuxingpingjing = this.SafeGetValue(stat_data, '修为瓶颈', '无');
 
         // 构建HTML
-        body.innerHTML = `
-                    <div class="panel-section">
-                        <div class="section-title">核心属性 <span style="font-size: 10px; color: #8b7355;">(当前/上限)</span></div>
-                        <div class="attributes-list">
-                            <div class="attribute-item"><span class="attribute-name">法力</span><span class="attribute-value">${fali}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">神海</span><span class="attribute-value">${shenhai}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">道心</span><span class="attribute-value">${daoxin}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">空速</span><span class="attribute-value">${kongsu}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">气运</span><span class="attribute-value">${qiyun}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">生理年龄</span><span class="attribute-value">${shengli}</span></div>
-                            <div class="attribute-item"><span class="attribute-name">心理年龄</span><span class="attribute-value">${xinli}</span></div>
-                        </div>
-                    </div>
-                    <div class="panel-section">
-                        <div class="section-title">修为详情</div>
-                        <div class="attributes-list">
-                            <div class="attribute-item">
-                                <span class="attribute-name">修为进度</span>
-                                <span class="attribute-value">${xiuxingjindu}%</span>
-                            </div>
-                            <div class="details-progress-bar">
-                                <div class="details-progress-fill" style="width: ${xiuxingjindu}%;"></div>
-                            </div>
-                            <div class="attribute-item" style="margin-top: 8px;">
-                                <span class="attribute-name">当前瓶颈</span>
-                                <span class="attribute-value">${xiuxingpingjing}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
+        const contentEl = GuixuDOM.h('div', {
+          children: [
+            GuixuDOM.h('div', {
+              classNames: ['panel-section'],
+              children: [
+                GuixuDOM.h('div', { classNames: ['section-title'], html: '核心属性 <span style="font-size: 10px; color: #8b7355;">(当前/上限)</span>' }),
+                GuixuDOM.h('div', {
+                  classNames: ['attributes-list'],
+                  children: [
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '法力' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: fali })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '神海' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: shenhai })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '道心' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: daoxin })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '空速' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: kongsu })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '气运' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: qiyun })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '生理年龄' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: shengli })] }),
+                    GuixuDOM.h('div', { classNames: ['attribute-item'], children: [GuixuDOM.h('span', { classNames: ['attribute-name'], text: '心理年龄' }), GuixuDOM.h('span', { classNames: ['attribute-value'], text: xinli })] }),
+                  ]
+                })
+              ]
+            }),
+            GuixuDOM.h('div', {
+              classNames: ['panel-section'],
+              children: [
+                GuixuDOM.h('div', { classNames: ['section-title'], text: '修为详情' }),
+                GuixuDOM.h('div', {
+                  classNames: ['attributes-list'],
+                  children: [
+                    GuixuDOM.h('div', {
+                      classNames: ['attribute-item'],
+                      children: [
+                        GuixuDOM.h('span', { classNames: ['attribute-name'], text: '修为进度' }),
+                        GuixuDOM.h('span', { classNames: ['attribute-value'], text: `${xiuxingjindu}%` })
+                      ]
+                    }),
+                    GuixuDOM.h('div', {
+                      classNames: ['details-progress-bar'],
+                      children: [GuixuDOM.h('div', { classNames: ['details-progress-fill'], style: `width: ${xiuxingjindu}%;` })]
+                    }),
+                    GuixuDOM.h('div', {
+                      classNames: ['attribute-item'],
+                      style: 'margin-top: 8px;',
+                      children: [
+                        GuixuDOM.h('span', { classNames: ['attribute-name'], text: '当前瓶颈' }),
+                        GuixuDOM.h('span', { classNames: ['attribute-value'], text: xiuxingpingjing })
+                      ]
+                    })
+                  ]
+                })
+              ]
+            })
+          ]
+        });
+        modal.renderBody(contentEl);
       } catch (error) {
         console.error('加载角色详情时出错:', error);
-        body.innerHTML =
-          '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载数据时出错。</p>';
+        modal.renderBody('<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载数据时出错。</p>');
       }
     },
 
     openModal(modalId) {
-      this.closeAllModals();
-      const modal = document.getElementById(modalId);
-      if (modal) modal.style.display = 'flex';
+      // This function will be deprecated. Use component instances instead.
+      const modal = this.modals[modalId];
+      if (modal) {
+        Object.values(this.modals).forEach(m => m.hide());
+        modal.show();
+      } else {
+        console.warn(`Modal with id "${modalId}" not found.`);
+      }
     },
 
     closeAllModals() {
-      document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.style.display = 'none';
-      });
+      if (this.modals) {
+        Object.values(this.modals).forEach(m => m.hide());
+      }
     },
 
     showCustomConfirm(message, onConfirm) {
-      const modal = document.getElementById('custom-confirm-modal');
-      const messageEl = document.getElementById('custom-confirm-message');
-      const okBtn = document.getElementById('custom-confirm-btn-ok');
-      const cancelBtn = document.getElementById('custom-confirm-btn-cancel');
+      const modal = this.modals['custom-confirm-modal'];
+      if (!modal) {
+        // Fallback to create a new one if not initialized
+        const confirmModal = new GuixuModal('custom-confirm-modal', '确认操作', {
+          footer: [
+            GuixuDOM.h('button', { id: 'custom-confirm-btn-ok', classNames: ['interaction-btn', 'primary-btn'], text: '确认' }),
+            GuixuDOM.h('button', { id: 'custom-confirm-btn-cancel', classNames: ['interaction-btn'], text: '取消' })
+          ]
+        });
+        this.modals['custom-confirm-modal'] = confirmModal;
+      }
 
-      if (!modal || !messageEl || !okBtn || !cancelBtn) return;
+      const confirmModalInstance = this.modals['custom-confirm-modal'];
+      confirmModalInstance.renderBody(message);
 
-      messageEl.textContent = message;
+      const okBtn = GuixuDOM.$('#custom-confirm-btn-ok', confirmModalInstance.el);
+      const cancelBtn = GuixuDOM.$('#custom-confirm-btn-cancel', confirmModalInstance.el);
 
-      // 使用 .cloneNode(true) 来移除旧的事件监听器
-      const newOkBtn = okBtn.cloneNode(true);
-      okBtn.parentNode.replaceChild(newOkBtn, okBtn);
-
-      const newCancelBtn = cancelBtn.cloneNode(true);
-      cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-
-      newOkBtn.addEventListener('click', () => {
-        this.closeAllModals();
+      const okHandler = () => {
+        confirmModalInstance.hide();
         if (typeof onConfirm === 'function') {
           onConfirm();
         }
-      });
+        cleanup();
+      };
 
-      newCancelBtn.addEventListener('click', () => {
-        this.closeAllModals();
-      });
+      const cancelHandler = () => {
+        confirmModalInstance.hide();
+        cleanup();
+      };
 
-      this.openModal('custom-confirm-modal');
+      const cleanup = () => {
+        okBtn.removeEventListener('click', okHandler);
+        cancelBtn.removeEventListener('click', cancelHandler);
+      };
+
+      okBtn.addEventListener('click', okHandler, { once: true });
+      cancelBtn.addEventListener('click', cancelHandler, { once: true });
+
+      confirmModalInstance.show();
     },
 
     // --- Feature Implementations (now simplified) ---
     async showInventory() {
-      this.openModal('inventory-modal');
-      const body = document.querySelector('#inventory-modal .modal-body');
-      if (!body) return;
+      if (window.GuixuUI && window.GuixuUI.inventory) {
+        window.GuixuUI.inventory.show();
+      } else {
+        console.warn('[归墟] InventoryUI 组件未加载，使用旧版渲染方法。');
+        // Fallback to old method if component is not available
+        this.openModal('inventory-modal');
+        const modal = this.modals['inventory-modal'];
+        if (!modal) return;
+        const body = modal.getBody();
+        body.innerHTML =
+          '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在清点行囊...</p>';
 
-      body.innerHTML =
-        '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在清点行囊...</p>';
-
-      try {
-        const messages = await getChatMessages(getCurrentMessageId());
-        if (!messages || messages.length === 0 || !messages[0].data || !messages[0].data.stat_data) {
-          body.innerHTML =
-            '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取背包数据。</p>';
-          console.warn('无法从当前消息中加载 stat_data 用于背包。');
-          return;
+        try {
+          const messages = await getChatMessages(getCurrentMessageId());
+          const stat_data = _.get(messages, '[0].data.stat_data');
+          if (!stat_data) {
+            body.innerHTML =
+              '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取背包数据。</p>';
+            return;
+          }
+          body.innerHTML = this.renderInventory(stat_data || {});
+        } catch (error) {
+          console.error('加载背包时出错:', error);
+          body.innerHTML = `<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载背包时出错: ${error.message}</p>`;
         }
-        const stat_data = messages[0].data.stat_data;
-        body.innerHTML = this.renderInventory(stat_data || {});
-      } catch (error) {
-        console.error('加载背包时出错:', error);
-        body.innerHTML = `<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载背包时出错: ${error.message}</p>`;
       }
     },
 
     async showRelationships() {
       this.openModal('relationships-modal');
-      const body = document.querySelector('#relationships-modal .modal-body');
-      if (!body) return;
+      const modal = this.modals['relationships-modal'];
+      if (!modal) return;
+      const body = modal.getBody();
 
       body.innerHTML =
         '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在梳理人脉...</p>';
@@ -758,7 +838,8 @@
           }
         }
 
-        body.innerHTML = this.renderRelationships(relationships || []);
+        const contentEl = this.renderRelationships(relationships || []);
+        modal.renderBody(contentEl);
       } catch (error) {
         console.error('加载人物关系时出错:', error);
         body.innerHTML = `<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载人物关系时出错: ${error.message}</p>`;
@@ -771,11 +852,10 @@
         relationships.length === 0 ||
         relationships[0] === '$__META_EXTENSIBLE__$'
       ) {
-        return '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">红尘俗世，暂无纠葛。</p>';
+        return GuixuDOM.h('p', { classNames: ['modal-placeholder'], style: 'text-align:center; color:#8b7355; font-size:12px;', text: '红尘俗世，暂无纠葛。' });
       }
 
-      let html = '';
-      relationships.forEach(rawRel => {
+      const relationshipCards = relationships.map(rawRel => {
         try {
           const rel = typeof rawRel === 'string' ? JSON.parse(rawRel) : rawRel;
 
@@ -791,45 +871,55 @@
           const favorabilityPercent = Math.max(0, Math.min(100, (favorability / 200) * 100)); // 假设好感度上限为200
           const cultivationDisplay = level ? `${tier} ${level}` : tier;
 
-          html += `
-                            <div class="relationship-card">
-                                <div class="relationship-body">
-                                    <p class="relationship-name" style="${tierStyle}">${name}</p>
-                                    <p>${description}</p>
-                                    
-                                    <div class="relationship-meta">
-                                        <span>关系: ${relationship}</span>
-                                        <span>修为: <span style="${tierStyle}">${cultivationDisplay}</span></span>
-                                    </div>
-
-                                    <p style="margin-top: 10px;">好感度: ${favorability}</p>
-                                    <div class="favorability-bar-container">
-                                        <div class="favorability-bar-fill" style="width: ${favorabilityPercent}%;"></div>
-                                    </div>
-
-                                    ${Array.isArray(eventHistory) && eventHistory.length > 0
-              ? `
-                                    <details class="event-history-details">
-                                        <summary class="event-history-summary">过往交集</summary>
-                                        <ul class="event-history-list">
-                                            ${eventHistory.filter(event => event !== '$__META_EXTENSIBLE__$' && event !== '...').map(event => `<li>${event}</li>`).join('')}
-                                        </ul>
-                                    </details>
-                                    `
-              : ''
-            }
-                                </div>
-                            </div>
-                        `;
+          return GuixuDOM.h('div', {
+            classNames: ['relationship-card'],
+            children: [
+              GuixuDOM.h('div', {
+                classNames: ['relationship-body'],
+                children: [
+                  GuixuDOM.h('p', { classNames: ['relationship-name'], style: tierStyle, text: name }),
+                  GuixuDOM.h('p', { text: description }),
+                  GuixuDOM.h('div', {
+                    classNames: ['relationship-meta'],
+                    children: [
+                      GuixuDOM.h('span', { text: `关系: ${relationship}` }),
+                      GuixuDOM.h('span', { html: `修为: <span style="${tierStyle}">${cultivationDisplay}</span>` })
+                    ]
+                  }),
+                  GuixuDOM.h('p', { style: 'margin-top: 10px;', text: `好感度: ${favorability}` }),
+                  GuixuDOM.h('div', {
+                    classNames: ['favorability-bar-container'],
+                    children: [GuixuDOM.h('div', { classNames: ['favorability-bar-fill'], style: `width: ${favorabilityPercent}%;` })]
+                  }),
+                  ...(Array.isArray(eventHistory) && eventHistory.length > 0 ? [
+                    GuixuDOM.h('details', {
+                      classNames: ['event-history-details'],
+                      children: [
+                        GuixuDOM.h('summary', { classNames: ['event-history-summary'], text: '过往交集' }),
+                        GuixuDOM.h('ul', {
+                          classNames: ['event-history-list'],
+                          children: eventHistory
+                            .filter(event => event !== '$__META_EXTENSIBLE__$' && event !== '...')
+                            .map(event => GuixuDOM.h('li', { text: event }))
+                        })
+                      ]
+                    })
+                  ] : [])
+                ]
+              })
+            ]
+          });
         } catch (e) {
           console.error('解析人物关系失败:', rawRel, e);
+          return null;
         }
-      });
+      }).filter(Boolean);
 
-      return (
-        html ||
-        '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">红尘俗世，暂无纠葛。</p>'
-      );
+      if (relationshipCards.length === 0) {
+        return GuixuDOM.h('p', { classNames: ['modal-placeholder'], style: 'text-align:center; color:#8b7355; font-size:12px;', text: '红尘俗世，暂无纠葛。' });
+      }
+
+      return GuixuDOM.h('div', { children: relationshipCards });
     },
 
     getTierStyle(tier) {
