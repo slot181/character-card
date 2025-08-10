@@ -144,26 +144,13 @@
     },
 
     formatMessageContent(text) {
+      try {
+        if (window.GuixuText && typeof window.GuixuText.formatMessageContent === 'function') {
+          return window.GuixuText.formatMessageContent(text);
+        }
+      } catch (e) {}
       if (!text) return '';
-      // 首先，处理换行符。AI响应似乎使用文字“\\n”。
-      let processedText = text.replace(/\\n/g, '<br />');
-
-      // 语言: “...” 或 「...」 -> 保留引号, 应用样式
-      processedText = processedText.replace(/(“[^”]+”|「[^」]+」)/g, match => {
-        return `<span class="text-language">${match}</span>`;
-      });
-
-      // 心理: *...* -> 移除星号, 应用样式
-      processedText = processedText.replace(/\*([^*]+)\*/g, (match, p1) => {
-        return `<span class="text-psychology">${p1}</span>`;
-      });
-
-      // 景物: 【...】 -> 移除括号, 应用样式, 且不匹配纯数字内容
-      processedText = processedText.replace(/【([^】\d]+[^】]*)】/g, (match, p1) => {
-        return `<span class="text-scenery">${p1}</span>`;
-      });
-
-      return processedText;
+      return String(text);
     },
 
     async init() {
@@ -1526,104 +1513,51 @@
     },
 
     updateDisplayedAttributes() {
-      // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
-      // 根据新的变量结构重写属性计算逻辑
       if (!this.currentMvuState || !this.currentMvuState.stat_data) {
         console.warn('无法更新属性：mvu状态不可用。');
         return;
       }
-
       const stat_data = this.currentMvuState.stat_data;
-      const baseAttrs = {
-        fali: parseInt(this.SafeGetValue(stat_data, '基础法力', 0), 10),
-        shenhai: parseInt(this.SafeGetValue(stat_data, '基础神海', 0), 10),
-        daoxin: parseInt(this.SafeGetValue(stat_data, '基础道心', 0), 10),
-        kongsu: parseInt(this.SafeGetValue(stat_data, '基础空速', 0), 10),
-        qiyun: parseInt(this.SafeGetValue(stat_data, '基础气运', 0), 10),
-      };
+      try {
+        if (window.GuixuAttributes && typeof window.GuixuAttributes.calculate === 'function') {
+          const result = window.GuixuAttributes.calculate(stat_data, this.equippedItems || {});
+          if (result && result.max && result.current) {
+            // 缓存上限
+            this.calculatedMaxAttributes = result.max;
 
-      const totalFlatBonuses = { fali: 0, shenhai: 0, daoxin: 0, kongsu: 0, qiyun: 0 };
-      const totalPercentBonuses = { fali: 0, shenhai: 0, daoxin: 0, kongsu: 0, qiyun: 0 };
-      const attributeMapping = { 法力: 'fali', 神海: 'shenhai', 道心: 'daoxin', 空速: 'kongsu', 气运: 'qiyun' };
+            // 更新UI
+            document.getElementById('attr-fali').innerText = `${result.current.fali} / ${result.max.fali}`;
+            document.getElementById('attr-shenhai').innerText = `${result.current.shenhai} / ${result.max.shenhai}`;
+            document.getElementById('attr-daoxin').innerText = `${result.current.daoxin} / ${result.max.daoxin}`;
+            document.getElementById('attr-kongsu').innerText = `${result.current.kongsu} / ${result.max.kongsu}`;
+            document.getElementById('attr-qiyun').innerText = result.max.qiyun;
 
-      const processBonuses = (item) => {
-        if (!item || typeof item !== 'object') return;
-
-        const flatBonuses = item.attributes_bonus;
-        if (flatBonuses && typeof flatBonuses === 'object') {
-          for (const [attrName, bonusValue] of Object.entries(flatBonuses)) {
-            const attrKey = attributeMapping[attrName];
-            if (attrKey) {
-              totalFlatBonuses[attrKey] += parseInt(bonusValue, 10) || 0;
-            }
+            // 年龄
+            const ages = result.ages || {};
+            document.getElementById('attr-shengli').innerText = `${ages.shengli} / ${ages.shengliMax}`;
+            document.getElementById('attr-xinli').innerText = `${ages.xinli} / ${ages.xinliMax}`;
+            return;
           }
         }
-
-        const percentBonuses = item['百分比加成'];
-        if (percentBonuses && typeof percentBonuses === 'object') {
-          for (const [attrName, bonusValue] of Object.entries(percentBonuses)) {
-            const attrKey = attributeMapping[attrName];
-            if (attrKey) {
-              totalPercentBonuses[attrKey] += parseFloat(String(bonusValue).replace('%', '')) / 100 || 0;
-            }
-          }
-        }
-      };
-
-      // 1. 收集所有加成来源
-      Object.values(this.equippedItems).forEach(processBonuses);
-      const tianfuList = _.get(stat_data, '天赋列表.0', []);
-      if (Array.isArray(tianfuList)) {
-        tianfuList.forEach(tianfu => {
-          if (typeof tianfu === 'object' && tianfu !== null) processBonuses(tianfu);
-        });
-      }
-      // 修改：处理灵根列表而非单个灵根
-      const linggenListData = _.get(stat_data, '灵根列表.0', []);
-      if (Array.isArray(linggenListData)) {
-        linggenListData.forEach(rawLinggen => {
-          try {
-            if (!rawLinggen || rawLinggen === '$__META_EXTENSIBLE__$') return;
-            const linggen = typeof rawLinggen === 'string' ? JSON.parse(rawLinggen) : rawLinggen;
-            if (linggen && typeof linggen === 'object') {
-              processBonuses(linggen);
-            }
-          } catch (e) {
-            console.error('处理灵根加成时解析失败:', rawLinggen, e);
-          }
-        });
+      } catch (e) {
+        console.error('[归墟] 属性计算服务调用失败，回退到内置逻辑:', e);
       }
 
-      // 2. 计算最终上限: 上限 = (基础 + Σ固定) * (1 + Σ百分比)
-      const calculatedMaxAttrs = {
-        fali: Math.floor((baseAttrs.fali + totalFlatBonuses.fali) * (1 + totalPercentBonuses.fali)),
-        shenhai: Math.floor((baseAttrs.shenhai + totalFlatBonuses.shenhai) * (1 + totalPercentBonuses.shenhai)),
-        daoxin: Math.floor((baseAttrs.daoxin + totalFlatBonuses.daoxin) * (1 + totalPercentBonuses.daoxin)),
-        kongsu: Math.floor((baseAttrs.kongsu + totalFlatBonuses.kongsu) * (1 + totalPercentBonuses.kongsu)),
-        qiyun: Math.floor((baseAttrs.qiyun + totalFlatBonuses.qiyun) * (1 + totalPercentBonuses.qiyun)),
-      };
+      // 回退：若服务不可用，尽量不致命
+      const get = (p, d) => (this.SafeGetValue ? this.SafeGetValue(stat_data, p, d) : d);
+      const fali = parseInt(get('当前法力', 0), 10) || 0;
+      const shenhai = parseInt(get('当前神海', 0), 10) || 0;
+      const daoxin = parseInt(get('当前道心', 0), 10) || 0;
+      const kongsu = parseInt(get('当前空速', 0), 10) || 0;
+      const qiyun = parseInt(get('基础气运', 0), 10) || 0;
 
-      // 新增：缓存计算结果，供其他函数使用
-      this.calculatedMaxAttributes = calculatedMaxAttrs;
-
-      // 3. 获取当前值，并确保不超过新计算的上限
-      const currentAttrs = {
-        fali: Math.min(parseInt(this.SafeGetValue(stat_data, '当前法力', 0), 10), calculatedMaxAttrs.fali),
-        shenhai: Math.min(parseInt(this.SafeGetValue(stat_data, '当前神海', 0), 10), calculatedMaxAttrs.shenhai),
-        daoxin: Math.min(parseInt(this.SafeGetValue(stat_data, '当前道心', 0), 10), calculatedMaxAttrs.daoxin),
-        kongsu: Math.min(parseInt(this.SafeGetValue(stat_data, '当前空速', 0), 10), calculatedMaxAttrs.kongsu),
-      };
-
-      // 4. 更新UI
-      document.getElementById('attr-fali').innerText = `${currentAttrs.fali} / ${calculatedMaxAttrs.fali}`;
-      document.getElementById('attr-shenhai').innerText = `${currentAttrs.shenhai} / ${calculatedMaxAttrs.shenhai}`;
-      document.getElementById('attr-daoxin').innerText = `${currentAttrs.daoxin} / ${calculatedMaxAttrs.daoxin}`;
-      document.getElementById('attr-kongsu').innerText = `${currentAttrs.kongsu} / ${calculatedMaxAttrs.kongsu}`;
-      document.getElementById('attr-qiyun').innerText = calculatedMaxAttrs.qiyun;
-
-      // 年龄等非计算属性直接更新
-      document.getElementById('attr-shengli').innerText = `${this.SafeGetValue(stat_data, '生理年龄')} / ${this.SafeGetValue(stat_data, '生理年龄上限')}`;
-      document.getElementById('attr-xinli').innerText = `${this.SafeGetValue(stat_data, '心理年龄')} / ${this.SafeGetValue(stat_data, '心理年龄上限')}`;
+      document.getElementById('attr-fali').innerText = `${fali}`;
+      document.getElementById('attr-shenhai').innerText = `${shenhai}`;
+      document.getElementById('attr-daoxin').innerText = `${daoxin}`;
+      document.getElementById('attr-kongsu').innerText = `${kongsu}`;
+      document.getElementById('attr-qiyun').innerText = qiyun;
+      document.getElementById('attr-shengli').innerText = `${get('生理年龄', '0')} / ${get('生理年龄上限', '0')}`;
+      document.getElementById('attr-xinli').innerText = `${get('心理年龄', '0')} / ${get('心理年龄上限', '0')}`;
     },
 
     showTemporaryMessage(message, duration = 2000) {
@@ -2478,16 +2412,21 @@
         }
 
         if (contentToParse) {
-          // 1. 更新主界面正文 (使用新的健壮的提取函数)
-          const displayText = this._getDisplayText(contentToParse);
+          // 1. 更新主界面正文（改用文本服务）
+          const displayText = (window.GuixuText && typeof window.GuixuText.getDisplayText === 'function')
+            ? window.GuixuText.getDisplayText(contentToParse)
+            : contentToParse;
           gameTextDisplay.innerHTML = this.formatMessageContent(displayText);
 
-          // 2. 同步提取所有标签内容到变量，用于“查看提取内容”模态框
-          this.lastExtractedNovelText = this._extractLastTagContent('gametxt', contentToParse);
-          this.lastExtractedJourney = this._extractLastTagContent('本世历程', contentToParse);
-          this.lastExtractedPastLives = this._extractLastTagContent('往世涟漪', contentToParse);
-          this.lastExtractedVariables = this._extractLastTagContent('UpdateVariable', contentToParse, true); // ignore case
-          this.lastExtractedCharacterCard = this._extractLastTagContent('角色提取', contentToParse);
+          // 2. 同步提取所有标签内容到变量（改用文本服务）
+          const extract = (tag, text, ignore) => (window.GuixuText && typeof window.GuixuText.extractLastTagContent === 'function')
+            ? window.GuixuText.extractLastTagContent(tag, text, !!ignore)
+            : null;
+          this.lastExtractedNovelText = extract('gametxt', contentToParse);
+          this.lastExtractedJourney = extract('本世历程', contentToParse);
+          this.lastExtractedPastLives = extract('往世涟漪', contentToParse);
+          this.lastExtractedVariables = extract('UpdateVariable', contentToParse, true);
+          this.lastExtractedCharacterCard = extract('角色提取', contentToParse);
         }
       } catch (error) {
         console.error(`[归墟] 加载并显示当前场景时出错:`, error);
