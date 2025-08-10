@@ -2199,6 +2199,17 @@
 
     // 最终版：重构写入逻辑，支持动态索引和条目创建
     async writeToLorebook(baseEntryKey, contentToWrite, silent = false) {
+      // 优先委托到 Lorebook 服务
+      if (window.GuixuLorebook && typeof window.GuixuLorebook.writeToLorebook === 'function') {
+        const res = await window.GuixuLorebook.writeToLorebook(baseEntryKey, contentToWrite, this.unifiedIndex, this.isAutoTrimEnabled);
+        if (!silent && res && res.message) this.showTemporaryMessage(res.message);
+        const journeyNameConst = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
+        const pastLivesNameConst = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
+        if (baseEntryKey === journeyNameConst) this.lastWrittenJourney = contentToWrite;
+        if (baseEntryKey === pastLivesNameConst) this.lastWrittenPastLives = contentToWrite;
+        if (baseEntryKey === ((window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.NOVEL_MODE) || '小说模式')) this.lastWrittenNovelText = contentToWrite;
+        return;
+      }
       if (!contentToWrite || contentToWrite.trim() === '') {
         if (!silent) this.showTemporaryMessage('没有可写入的内容。');
         return;
@@ -2364,6 +2375,11 @@
     },
 
     async updateCurrentSceneLorebook(sceneContent) {
+      // 优先委托到 Lorebook 服务
+      if (window.GuixuLorebook && typeof window.GuixuLorebook.updateCurrentScene === 'function') {
+        await window.GuixuLorebook.updateCurrentScene(sceneContent);
+        return;
+      }
       // 增加健壮性检查，防止写入空内容
       if (!sceneContent || sceneContent.trim() === '') {
         console.warn('[归墟] 尝试向“当前场景”写入空内容，操作已取消。');
@@ -2786,6 +2802,34 @@
     // 新增：处理所有动作的核心函数
 
     async handleAction(userMessage = '') {
+      // 优先委托到 MVU Bridge 服务
+      if (window.GuixuMvuBridge && typeof window.GuixuMvuBridge.handleAction === 'function') {
+        try {
+          this.showWaitingMessage();
+          const res = await window.GuixuMvuBridge.handleAction(this.pendingActions, this.currentMvuState, userMessage);
+          this.hideWaitingMessage();
+          if (res && res.success) {
+            if (res.lastSentPrompt) this.lastSentPrompt = res.lastSentPrompt;
+            if (res.newMvuState) this.currentMvuState = res.newMvuState;
+            if (res.aiResponse) await this.loadAndDisplayCurrentScene(res.aiResponse);
+            const input = document.getElementById('quick-send-input');
+            if (input) input.value = '';
+            this.pendingActions = [];
+            this.savePendingActions();
+            this.closeAllModals();
+            this.showTemporaryMessage(res.message || '已完成');
+            await this.updateDynamicData();
+            this.loadEquipmentState();
+            return;
+          } else {
+            this.showTemporaryMessage((res && res.message) || '执行失败');
+            return;
+          }
+        } catch (err) {
+          this.hideWaitingMessage();
+          console.error('[归墟] MVU Bridge 调用失败，回退到内置逻辑:', err);
+        }
+      }
       // 1. 整合输入
       let commandText = '';
       if (this.pendingActions.length > 0) {
