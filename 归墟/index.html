@@ -146,7 +146,7 @@
       </div>
     </div>
 
-    <!-- 背包模态 -->
+    <!-- 各种模态窗口 -->
     <div id="inventory-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
@@ -156,8 +156,6 @@
         <div class="modal-body"><!-- 动态填充 --></div>
       </div>
     </div>
-
-    <!-- 人物关系模态 -->
     <div id="relationships-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
@@ -167,21 +165,16 @@
         <div class="modal-body"><!-- 动态填充 --></div>
       </div>
     </div>
-
-    <!-- 历史回顾模态（本世历程/往世涟漪共用） -->
     <div id="history-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
           <h2 id="history-modal-title" class="modal-title">历史回顾</h2>
-          <div id="history-modal-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
-          </div>
+          <div id="history-modal-actions" style="display: flex; align-items: center; gap: 10px; margin-left: auto;"></div>
           <button class="modal-close-btn" style="margin-left: 15px;">&times;</button>
         </div>
         <div id="history-modal-body" class="modal-body"><!-- 动态填充 --></div>
       </div>
     </div>
-
-    <!-- 指令中心模态 -->
     <div id="command-center-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
@@ -193,14 +186,11 @@
           <button id="btn-refresh-storage" class="interaction-btn">刷新缓存</button>
           <div>
             <button id="btn-clear-commands" class="interaction-btn">清空指令</button>
-            <button id="btn-execute-commands" class="interaction-btn primary-btn"
-              style="margin-left: 10px">执行指令</button>
+            <button id="btn-execute-commands" class="interaction-btn primary-btn" style="margin-left: 10px">执行指令</button>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- 提取内容查看模态 -->
     <div id="extracted-content-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
@@ -212,62 +202,46 @@
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>本世历程</span>
-              <button id="btn-write-journey" class="interaction-btn"
-                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-journey" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-journey"
-              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-journey" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </div>
-
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>往世涟漪</span>
-              <button id="btn-write-past-lives" class="interaction-btn"
-                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-past-lives" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-past-lives"
-              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-past-lives" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </div>
-
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>小说模式</span>
-              <button id="btn-write-novel-mode" class="interaction-btn"
-                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-novel-mode" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-novel-mode"
-              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">小说模式已关闭</pre>
+            <pre id="extracted-novel-mode" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">小说模式已关闭</pre>
           </div>
-
           <div class="panel-section">
             <div class="section-title" style="display: flex; justify-content: space-between; align-items: center">
               <span>提取角色</span>
-              <button id="btn-write-character-card" class="interaction-btn"
-                style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
+              <button id="btn-write-character-card" class="interaction-btn" style="padding: 4px 8px; font-size: 12px; margin-left: 10px">写入世界书</button>
             </div>
-            <pre id="extracted-character-card"
-              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-character-card" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </div>
-
           <div class="auto-write-section">
             <input type="checkbox" id="novel-mode-enabled-checkbox" />
             <label for="novel-mode-enabled-checkbox" class="auto-write-label">开启小说模式</label>
             <input type="checkbox" id="auto-write-checkbox" checked style="margin-left: 20px" />
             <label for="auto-write-checkbox" class="auto-write-label">自动写入历程/涟漪</label>
           </div>
-
           <details class="panel-section" style="margin-top: 15px">
             <summary class="section-title" style="cursor: pointer; list-style: none">
               <span>本次变量改变</span>
             </summary>
-            <pre id="extracted-variable-changes"
-              style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
+            <pre id="extracted-variable-changes" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </details>
         </div>
       </div>
     </div>
-
-    <!-- 角色详情模态 -->
     <div id="character-details-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
@@ -277,8 +251,6 @@
         <div class="modal-body"><!-- 动态填充 --></div>
       </div>
     </div>
-
-    <!-- 归墟系统模态 -->
     <div id="guixu-system-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
@@ -288,11 +260,7 @@
         <div class="modal-body"><!-- 动态填充 --></div>
       </div>
     </div>
-
-    <!-- 装备详情悬浮提示框 -->
     <div id="equipment-tooltip"></div>
-
-    <!-- 自定义确认模态框 -->
     <div id="custom-confirm-modal" class="modal-overlay">
       <div class="modal-content confirm-modal-content">
         <div id="custom-confirm-message" class="confirm-modal-message"></div>
@@ -302,11 +270,7 @@
         </div>
       </div>
     </div>
-
-    <!-- 快速指令弹出菜单 -->
     <div id="quick-command-popup"></div>
-
-    <!-- 存档/读档管理模态窗口 -->
     <div id="save-load-modal" class="modal-overlay">
       <div class="modal-content">
         <div class="modal-header">
@@ -326,15 +290,11 @@
             </div>
           </div>
           <div id="auto-save-slot-container" style="margin-bottom: 15px;"></div>
-          <h3
-            style="font-size: 14px; color: #8b7355; margin-top: 20px; margin-bottom: 10px; border-top: 1px solid rgba(201, 170, 113, 0.3); padding-top: 15px;">
-            手动存档</h3>
+          <h3 style="font-size: 14px; color: #8b7355; margin-top: 20px; margin-bottom: 10px; border-top: 1px solid rgba(201, 170, 113, 0.3); padding-top: 15px;">手动存档</h3>
           <div id="save-slots-container"></div>
         </div>
       </div>
     </div>
-
-    <!-- 自动化系统修剪模态 -->
     <div id="trim-journey-modal" class="modal-overlay">
       <div class="modal-content" style="width: 500px; height: auto;">
         <div class="modal-header">
@@ -350,8 +310,7 @@
             <div class="attributes-list" style="padding: 10px;">
               <div class="attribute-item">
                 <span class="attribute-name">读取/写入序号</span>
-                <input type="number" id="trim-journey-index-input" value="1" min="1"
-                  style="width: 80px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 4px; font-size: 12px;">
+                <input type="number" id="trim-journey-index-input" value="1" min="1" style="width: 80px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 4px; font-size: 12px;">
               </div>
             </div>
           </div>
@@ -362,8 +321,6 @@
         </div>
       </div>
     </div>
-
-    <!-- 文件导入隐藏input -->
     <input type="file" id="import-file-input" style="display: none;" accept=".json" />
   </div>
 
@@ -378,9 +335,6 @@
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/services/attributes.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/services/lorebook.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/services/mvu-bridge.js"></script>
-  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/ui/dom.js"></script>
-  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/ui/modal.js"></script>
-  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/ui/inventory.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/guixu.js"></script>
 </body>
 
