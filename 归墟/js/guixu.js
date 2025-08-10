@@ -164,9 +164,8 @@
         const el = document.getElementById(id);
         if (el) {
           const title = el.querySelector('.modal-title')?.textContent || '归墟';
+          // 修正：不再隐藏静态HTML，而是让Modal类来管理显示/隐藏
           this.modals[id] = new GuixuModal(id, title);
-          // Hide the original static modal from the DOM
-          el.style.display = 'none';
         }
       });
     },
@@ -267,8 +266,9 @@
       updateText('val-jinian', this.SafeGetValue(data, '当前时间纪年'));
       const charge = this.SafeGetValue(data, '归墟充能时间', '0');
       updateText('val-guixu-charge-text', `${charge}%`);
-      const chargeBar = document.getElementById('bar-guixu-charge');
-      if (chargeBar) chargeBar.style.setProperty('--guixu-charge', `${charge}%`);
+      // **问题2修复**: 直接设置填充元素的宽度，而不是通过CSS变量
+      const chargeFill = document.querySelector('#bar-guixu-charge .guixu-fill');
+      if (chargeFill) chargeFill.style.width = `${charge}%`;
 
       // 此处不再需要填充 this.baseAttributes，因为 updateDisplayedAttributes 会直接从 stat_data 读取
 
@@ -720,20 +720,32 @@
     },
 
     openModal(modalId) {
-      // This function will be deprecated. Use component instances instead.
-      const modal = this.modals[modalId];
-      if (modal) {
-        Object.values(this.modals).forEach(m => m.hide());
-        modal.show();
+      // 修正：直接调用组件实例的show方法，而不是自己管理
+      const modalInstance = this.modals[modalId];
+      if (modalInstance) {
+        // 先隐藏所有其他模态框
+        Object.values(this.modals).forEach(m => {
+          if (m.id !== modalId) m.hide();
+        });
+        modalInstance.show();
       } else {
-        console.warn(`Modal with id "${modalId}" not found.`);
+        // 回退到旧的DOM操作方式，以防万一
+        console.warn(`Modal instance for "${modalId}" not found. Falling back to direct DOM manipulation.`);
+        this.closeAllModals();
+        const modalEl = document.getElementById(modalId);
+        if (modalEl) modalEl.style.display = 'flex';
       }
     },
 
     closeAllModals() {
+      // 修正：使用组件实例来隐藏
       if (this.modals) {
         Object.values(this.modals).forEach(m => m.hide());
       }
+      // 同时保留旧的回退逻辑
+      document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.style.display = 'none';
+      });
     },
 
     showCustomConfirm(message, onConfirm) {
@@ -1987,7 +1999,8 @@
         const journeyName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.JOURNEY) || '本世历程';
         const journeyKey = index > 1 ? `${journeyName}(${index})` : journeyName;
         const allEntries = await TavernHelper.getLorebookEntries(bookName);
-        const journeyEntry = allEntries.find(entry => entry.comment === journeyKey);
+        // **问题3修复**: 对比时去除两端空格，增加匹配健壮性
+        const journeyEntry = allEntries.find(entry => entry.comment.trim() === journeyKey.trim());
 
         if (!journeyEntry) {
           console.warn(`在世界书 "${bookName}" 中未找到标题为 "${journeyKey}" 的条目。`);
@@ -2018,7 +2031,8 @@
         const pastLivesName = (window.GuixuConstants && GuixuConstants.LOREBOOK.ENTRIES && GuixuConstants.LOREBOOK.ENTRIES.PAST_LIVES) || '往世涟漪';
         const pastLivesKey = index > 1 ? `${pastLivesName}(${index})` : pastLivesName;
         const allEntries = await TavernHelper.getLorebookEntries(bookName);
-        const pastLivesEntry = allEntries.find(entry => entry.comment === pastLivesKey);
+        // **问题3修复**: 对比时去除两端空格，增加匹配健壮性
+        const pastLivesEntry = allEntries.find(entry => entry.comment.trim() === pastLivesKey.trim());
 
         if (!pastLivesEntry) {
           console.warn(`在世界书 "${bookName}" 中未找到标题为 "${pastLivesKey}" 的条目。`);
@@ -4359,6 +4373,8 @@
   // 入口：SillyTavern 就绪后初始化
   eventOn(tavern_events.APP_READY, () => {
     GuixuManager.init();
+    // 将主管理器挂载到 window 对象，以便其他脚本可以访问
+    window.GuixuManager = GuixuManager;
   });
 
 })();

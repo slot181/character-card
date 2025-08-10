@@ -25,10 +25,14 @@
     }
 
     _bindEvents() {
-      const Manager = getManager();
-      if (!Manager) return;
-      // 使用事件委托处理背包内的所有点击事件
+      // **问题1修复**: 不在构造时获取Manager，而是在事件回调中获取
       this.modal.getBody().addEventListener('click', (e) => {
+        const Manager = getManager();
+        if (!Manager) {
+          console.error('[归墟背包] 事件处理失败：GuixuManager 未找到。');
+          return;
+        }
+
         const target = e.target;
         const itemElement = target.closest('.inventory-item');
         if (!itemElement) return;
@@ -56,27 +60,27 @@
     async show() {
       const Manager = getManager();
       if (!Manager) {
-        this.modal.renderBody('<p class="modal-placeholder" style="text-align:center; color:red;">错误：主管理器未加载。</p>');
+        this.modal.renderBody(h('p', { classNames: ['modal-placeholder'], style: 'text-align:center; color:red;', text: '错误：主管理器 GuixuManager 未加载。' }));
         this.modal.show();
         return;
       }
 
-      this.modal.renderBody('<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在清点行囊...</p>');
+      this.modal.renderBody(h('p', { classNames: ['modal-placeholder'], style: 'text-align:center; color:#8b7355; font-size:12px;', text: '正在清点行囊...' }));
       this.modal.show();
 
       try {
-        const messages = await getChatMessages(getCurrentMessageId());
-        const stat_data = _.get(messages, '[0].data.stat_data');
+        // 直接从主管理器获取缓存的状态，而不是重新API调用
+        const stat_data = _.get(Manager.currentMvuState, 'stat_data');
 
         if (!stat_data) {
-          this.modal.renderBody('<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取背包数据。</p>');
+          this.modal.renderBody(h('p', { classNames: ['modal-placeholder'], style: 'text-align:center; color:#8b7355; font-size:12px;', text: '无法获取背包数据。' }));
           return;
         }
         const inventoryContent = this.render(stat_data);
         this.modal.renderBody(inventoryContent);
       } catch (error) {
         console.error('加载背包时出错:', error);
-        this.modal.renderBody(`<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载背包时出错: ${error.message}</p>`);
+        this.modal.renderBody(h('p', { classNames: ['modal-placeholder'], style: 'text-align:center; color:#8b7355; font-size:12px;', text: `加载背包时出错: ${error.message}` }));
       }
     }
 
