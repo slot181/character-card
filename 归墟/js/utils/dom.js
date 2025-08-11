@@ -13,12 +13,29 @@
     h(tagName, attributes = {}, children = []) {
       const element = document.createElement(tagName);
       for (const key in attributes) {
-        if (key.startsWith('on') && typeof attributes[key] === 'function') {
-          element.addEventListener(key.substring(2).toLowerCase(), attributes[key]);
-        } else if (key === 'style' && typeof attributes[key] === 'object') {
-          Object.assign(element.style, attributes[key]);
+        const value = attributes[key];
+        if (key.startsWith('on') && typeof value === 'function') {
+          element.addEventListener(key.substring(2).toLowerCase(), value);
+        } else if (key === 'style') {
+          if (typeof value === 'object' && value !== null) {
+            Object.assign(element.style, value);
+          } else if (typeof value === 'string') {
+            element.setAttribute('style', value);
+          }
+        } else if (key === 'className' || key === 'class') {
+          element.className = value;
+        } else if (key === 'textContent') {
+          element.textContent = value;
+        } else if (key === 'innerHTML' || key === 'html') {
+          element.innerHTML = value;
+        } else if (key === 'disabled' || key === 'checked' || key === 'selected') {
+          element[key] = !!value;
+        } else if (typeof value === 'boolean') {
+          if (value) {
+            element.setAttribute(key, '');
+          }
         } else {
-          element.setAttribute(key, attributes[key]);
+          element.setAttribute(key, value);
         }
       }
       children.forEach(child => {
