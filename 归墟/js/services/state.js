@@ -262,11 +262,7 @@
           
           window.GuixuHelpers.showTemporaryMessage(`已自动存档`);
           if (document.getElementById('save-load-modal')?.style.display === 'flex') {
-            // This is a bit of a hack, ideally the UI manager would handle this.
-            // For now, we assume GuixuManager is available globally.
-            if (window.GuixuManager) {
-                window.GuixuManager.showSaveLoadManager();
-            }
+            window.GuixuActionService?.showSaveLoadManager?.();
           }
         } catch (error) {
           console.error('自动存档失败:', error);

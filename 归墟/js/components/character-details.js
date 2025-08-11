@@ -10,13 +10,7 @@
   const CharacterDetailsComponent = {
     async show() {
       const { $ } = window.GuixuDOM;
-      if (!window.GuixuManager || typeof window.GuixuManager.openModal !== 'function') {
-        console.warn('[归墟] CharacterDetailsComponent: GuixuManager.openModal 不可用，直接操作 DOM。');
-        const modal = $('#character-details-modal');
-        if (modal) modal.style.display = 'flex';
-      } else {
-        window.GuixuManager.openModal('character-details-modal');
-      }
+      window.GuixuBaseModal.open('character-details-modal');
 
       const body = $('#character-details-modal .modal-body');
       if (!body) return;
@@ -33,8 +27,8 @@
         }
 
         // 同步一次属性展示，保持与左侧面板一致
-        if (window.GuixuManager && typeof window.GuixuManager.updateDisplayedAttributes === 'function') {
-          window.GuixuManager.updateDisplayedAttributes();
+        if (window.GuixuAttributeService && typeof window.GuixuAttributeService.updateDisplay === 'function') {
+          window.GuixuAttributeService.updateDisplay();
         }
 
         // 从已渲染的左侧面板获取值，确保与显示一致

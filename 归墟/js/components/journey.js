@@ -34,8 +34,8 @@
           window.GuixuHelpers.showTemporaryMessage(`自动修剪已${enabled ? '开启' : '关闭'}`);
         });
         $('#btn-show-trim-modal')?.addEventListener('click', () => {
-          if (window.GuixuManager && typeof window.GuixuManager.openModal === 'function') {
-            window.GuixuManager.openModal('trim-journey-modal');
+          if (window.GuixuBaseModal && typeof window.GuixuBaseModal.open === 'function') {
+            window.GuixuBaseModal.open('trim-journey-modal');
           } else {
             const overlay = $('#trim-journey-modal');
             if (overlay) overlay.style.display = 'flex';

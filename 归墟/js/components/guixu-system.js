@@ -54,21 +54,27 @@
           </div>
         `;
 
-        $('#btn-trigger-guixu')?.addEventListener('click', () => {
+        $('#btn-trigger-guixu')?.addEventListener('click', async () => {
           const c = parseInt(chargeTime, 10) || 0;
           if (c >= 100) {
-            const confirmFn = () => {
+            const doAction = async () => {
               const command = '{{user}}选择归墟，世界将回到最初的锚点';
-              if (window.GuixuManager && typeof window.GuixuManager.handleAction === 'function') {
-                window.GuixuManager.handleAction(command);
-              } else {
-                window.GuixuHelpers.showTemporaryMessage('无法执行归墟指令：GuixuManager 不可用');
+              try {
+                if (window.GuixuActionService && typeof window.GuixuActionService.handleAction === 'function') {
+                  await window.GuixuActionService.handleAction(command);
+                  window.GuixuHelpers.showTemporaryMessage('轮回已开启...');
+                } else {
+                  window.GuixuHelpers.showTemporaryMessage('无法执行归墟指令：ActionService 不可用');
+                }
+              } catch (e) {
+                console.error('[归墟] 执行归墟指令失败:', e);
+                window.GuixuHelpers.showTemporaryMessage('执行归墟指令失败！');
               }
             };
-            if (window.GuixuManager && typeof window.GuixuManager.showCustomConfirm === 'function') {
-              window.GuixuManager.showCustomConfirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。', confirmFn);
+            if (window.GuixuMain && typeof window.GuixuMain.showCustomConfirm === 'function') {
+              window.GuixuMain.showCustomConfirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。', doAction);
             } else {
-              if (confirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。')) confirmFn();
+              if (confirm('你确定要开启下一次轮回吗？所有未储存的记忆都将消散。')) await doAction();
             }
           } else {
             window.GuixuHelpers.showTemporaryMessage('归墟充能进度不足');

@@ -2,8 +2,8 @@
 (function (window) {
   'use strict';
 
-  if (!window.GuixuDOM || !window.GuixuBaseModal || !window.GuixuAPI || !window.GuixuHelpers) {
-    console.error('[归墟] InventoryComponent 初始化失败：缺少依赖(GuixuDOM/GuixuBaseModal/GuixuAPI/GuixuHelpers)。');
+  if (!window.GuixuDOM || !window.GuixuBaseModal || !window.GuixuAPI || !window.GuixuHelpers || !window.GuixuState) {
+    console.error('[归墟] InventoryComponent 初始化失败：缺少依赖(GuixuDOM/GuixuBaseModal/GuixuAPI/GuixuHelpers/GuixuState)。');
     return;
   }
 
@@ -26,8 +26,8 @@
           return;
         }
 
-        // 直接使用组件内渲染逻辑，彻底去耦合 GuixuManager.renderInventory
         body.innerHTML = this.render(stat_data || {});
+        this.bindEvents(body);
       } catch (error) {
         console.error('[归墟] 加载背包时出错:', error);
         body.innerHTML = `<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载背包时出错: ${error.message}</p>`;
@@ -35,8 +35,8 @@
     },
 
     render(stat_data) {
-      const gm = window.GuixuManager;
       const h = window.GuixuHelpers;
+      const state = window.GuixuState.getState();
 
       if (!stat_data || Object.keys(stat_data).length === 0) {
         return '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">背包数据为空。</p>';
@@ -94,12 +94,13 @@
               const description = h.SafeGetValue(item, 'description', h.SafeGetValue(item, 'effect', '无描述'));
 
               // 待处理队列扣减数量
-              const pendingUses = (gm?.pendingActions || [])
+              const pendingActions = (state?.pendingActions || []);
+              const pendingUses = pendingActions
                 .filter(action => action.action === 'use' && action.itemName === name)
-                .reduce((total, action) => total + action.quantity, 0);
-              const pendingDiscards = (gm?.pendingActions || [])
+                .reduce((total, action) => total + (action.quantity || 0), 0);
+              const pendingDiscards = pendingActions
                 .filter(action => action.action === 'discard' && action.itemName === name)
-                .reduce((total, action) => total + action.quantity, 0);
+                .reduce((total, action) => total + (action.quantity || 0), 0);
               const displayQuantity = quantity - pendingUses - pendingDiscards;
 
               // 数量用尽/丢弃后隐藏
@@ -111,12 +112,13 @@
               const quantityDisplay = hasQuantity ? `<span class="item-quantity">数量: ${displayQuantity}</span>` : '';
 
               // 是否已装备
-              const isEquipped = id ? Object.values(gm?.equippedItems || {}).some(eq => eq && eq.id === id) : false;
+              const equippedItems = state?.equippedItems || {};
+              const isEquipped = id ? Object.values(equippedItems).some(eq => eq && eq.id === id) : false;
               let actionButton = '';
 
               if (cat.title === '功法') {
-                const isEquippedAsMain = id && gm?.equippedItems?.zhuxiuGongfa && gm.equippedItems.zhuxiuGongfa.id === id;
-                const isEquippedAsAux = id && gm?.equippedItems?.fuxiuXinfa && gm.equippedItems.fuxiuXinfa.id === id;
+                const isEquippedAsMain = id && equippedItems?.zhuxiuGongfa && equippedItems.zhuxiuGongfa.id === id;
+                const isEquippedAsAux = id && equippedItems?.fuxiuXinfa && equippedItems.fuxiuXinfa.id === id;
 
                 if (isEquippedAsMain) {
                   actionButton = `
@@ -136,8 +138,8 @@
                 }
               } else if (cat.equipable) {
                 if (isEquipped) {
-                  const slotKey = Object.keys(gm?.equippedItems || {}).find(
-                    key => gm.equippedItems[key] && gm.equippedItems[key].id === id
+                  const slotKey = Object.keys(equippedItems || {}).find(
+                    key => equippedItems[key] && equippedItems[key].id === id
                   );
                   actionButton = `<button class="item-unequip-btn" data-slot-id="equip-${slotKey}">卸下</button>`;
                 } else {
@@ -154,9 +156,9 @@
               // 所有物品都可丢弃
               actionButton += `<button class="item-discard-btn" style="margin-left: 5px; background: #8b0000; border-color: #ff6b6b;">丢弃</button>`;
 
-              // 细节说明使用 Manager 的已有渲染函数，避免重复实现
-              const itemDetailsHtml = (gm && typeof gm.renderItemDetailsForInventory === 'function')
-                ? gm.renderItemDetailsForInventory(item)
+              // 细节说明使用通用渲染工具，避免重复实现
+              const itemDetailsHtml = (window.GuixuRenderers && typeof window.GuixuRenderers.renderItemDetailsForInventory === 'function')
+                ? window.GuixuRenderers.renderItemDetailsForInventory(item)
                 : '';
 
               html += `
@@ -190,7 +192,225 @@
       });
 
       return html;
-    }
+    },
+
+    bindEvents(container) {
+      const { $ } = window.GuixuDOM;
+
+      container.addEventListener('click', async (e) => {
+        const target = e.target;
+        const itemElement = target.closest('.inventory-item');
+        if (!itemElement) return;
+
+        let item;
+        try {
+          item = JSON.parse(itemElement.dataset.itemDetails.replace(/'/g, "'") || '{}');
+        } catch {
+          item = {};
+        }
+        const category = itemElement.dataset.category;
+
+        if (target.classList.contains('item-equip-btn')) {
+          const equipType = target.dataset.equipType; // zhuxiu/fuxiu 或空
+          await this.equipItem(item, category, equipType);
+        } else if (target.classList.contains('item-unequip-btn')) {
+          const slotId = target.dataset.slotId;
+          await this.unequipItem(slotId);
+        } else if (target.classList.contains('item-use-btn')) {
+          await this.useItem(item);
+        } else if (target.classList.contains('item-discard-btn')) {
+          await this.discardItem(item, category);
+        }
+      });
+    },
+
+    // 逻辑：装备
+    async equipItem(item, category, equipType = null) {
+      const $ = (sel, ctx = document) => ctx.querySelector(sel);
+      const h = window.GuixuHelpers;
+      const state = window.GuixuState.getState();
+      const equipped = { ...(state.equippedItems || {}) };
+
+      const itemId = h.SafeGetValue(item, 'id');
+      if (!itemId || itemId === 'N/A') {
+        h.showTemporaryMessage('物品无ID，无法装备。');
+        return;
+      }
+
+      // 分类映射
+      const categoryMap = { 武器: 'wuqi', 防具: 'fangju', 饰品: 'shipin', 法宝: 'fabao1', 功法: equipType === 'zhuxiu' ? 'zhuxiuGongfa' : equipType === 'fuxiu' ? 'fuxiuXinfa' : null };
+      const slotKey = categoryMap[category];
+      if (!slotKey) {
+        h.showTemporaryMessage('错误的装备分类或类型。');
+        return;
+      }
+
+      // 同一物品若在其他槽位，先卸下
+      const currentSlot = Object.keys(equipped).find(k => equipped[k]?.id === itemId);
+      if (currentSlot && currentSlot !== slotKey) {
+        await this.unequipItem(`equip-${currentSlot}`, false);
+      }
+
+      // 如果目标槽位已有装备，先卸下
+      if (equipped[slotKey]) {
+        await this.unequipItem(`equip-${slotKey}`, false);
+      }
+
+      // 更新状态
+      equipped[slotKey] = item;
+      window.GuixuState.update('equippedItems', equipped);
+
+      // 更新槽位DOM
+      const slotEl = $(`#equip-${slotKey}`);
+      if (slotEl) {
+        const tier = h.SafeGetValue(item, 'tier', '凡品');
+        const tierStyle = h.getTierStyle(tier);
+        slotEl.textContent = h.SafeGetValue(item, 'name');
+        slotEl.setAttribute('style', tierStyle);
+        slotEl.classList.add('equipped');
+        slotEl.dataset.itemDetails = JSON.stringify(item).replace(/'/g, "'");
+      }
+
+      // 加入指令队列
+      const pending = [...(state.pendingActions || [])];
+      const itemName = h.SafeGetValue(item, 'name');
+      const defaultTextMap = {
+        wuqi: '武器',
+        fangju: '防具',
+        shipin: '饰品',
+        fabao1: '法宝',
+        zhuxiuGongfa: '主修功法',
+        fuxiuXinfa: '辅修心法',
+      };
+      // 去重
+      const filtered = pending.filter(a => !(a.action === 'equip' && a.itemName === itemName));
+      filtered.push({ action: 'equip', itemName, category: defaultTextMap[slotKey] || category });
+      window.GuixuState.update('pendingActions', filtered);
+
+      window.GuixuHelpers.showTemporaryMessage(`已装备 ${window.GuixuHelpers.SafeGetValue(item, 'name')}`);
+
+      // 重新渲染
+      await this.show();
+      // 刷新属性展示（若需要）
+      if (window.GuixuAttributeService?.updateDisplay) window.GuixuAttributeService.updateDisplay();
+    },
+
+    // 逻辑：卸下
+    async unequipItem(slotId, refresh = true) {
+      const $ = (sel, ctx = document) => ctx.querySelector(sel);
+      const h = window.GuixuHelpers;
+      const state = window.GuixuState.getState();
+      const equipped = { ...(state.equippedItems || {}) };
+      const slotKey = (slotId || '').replace('equip-', '');
+
+      const slotEl = $(`#equip-${slotKey}`);
+      if (!slotEl) return;
+
+      let itemName = '一件装备';
+      try {
+        const item = JSON.parse((slotEl.dataset.itemDetails || '').replace(/'/g, "'") || '{}');
+        itemName = h.SafeGetValue(item, 'name', itemName);
+      } catch {}
+
+      // 清状态
+      equipped[slotKey] = null;
+      window.GuixuState.update('equippedItems', equipped);
+
+      // 清UI
+      const defaultTextMap = {
+        wuqi: '武器',
+        fangju: '防具',
+        shipin: '饰品',
+        fabao1: '法宝',
+        zhuxiuGongfa: '主修功法',
+        fuxiuXinfa: '辅修心法',
+      };
+      slotEl.textContent = defaultTextMap[slotKey] || '空';
+      slotEl.classList.remove('equipped');
+      slotEl.removeAttribute('style');
+      delete slotEl.dataset.itemDetails;
+
+      // 加队列
+      const pending = [...(state.pendingActions || [])].filter(a => !(a.action === 'unequip' && a.itemName === itemName));
+      pending.push({ action: 'unequip', itemName, category: defaultTextMap[slotKey] });
+      window.GuixuState.update('pendingActions', pending);
+
+      window.GuixuHelpers.showTemporaryMessage(`已卸下 ${itemName}`);
+
+      if (refresh) await this.show();
+      if (window.GuixuAttributeService?.updateDisplay) window.GuixuAttributeService.updateDisplay();
+    },
+
+    // 逻辑：使用（数量类）
+    async useItem(item) {
+      const h = window.GuixuHelpers;
+      const state = window.GuixuState.getState();
+      const pending = [...(state.pendingActions || [])];
+
+      const itemName = h.SafeGetValue(item, 'name');
+      const originalQuantity = parseInt(h.SafeGetValue(item, 'quantity', 0), 10);
+      const pendingUses = pending.filter(a => a.action === 'use' && a.itemName === itemName).reduce((t, a) => t + (a.quantity || 0), 0);
+
+      if (originalQuantity - pendingUses <= 0) {
+        h.showTemporaryMessage(`${itemName} 已用完或已在指令队列中。`);
+        return;
+      }
+
+      const exist = pending.find(a => a.action === 'use' && a.itemName === itemName);
+      if (exist) exist.quantity = (exist.quantity || 0) + 1;
+      else pending.push({ action: 'use', itemName, quantity: 1 });
+
+      window.GuixuState.update('pendingActions', pending);
+      h.showTemporaryMessage(`已将 [使用 ${itemName}] 加入指令队列`);
+
+      await this.show();
+    },
+
+    // 逻辑：丢弃（数量类/装备类）
+    async discardItem(item, category) {
+      const hasQuantity = Object.prototype.hasOwnProperty.call(item, 'quantity');
+      if (hasQuantity && (category === '丹药' || category === '杂物')) {
+        // 简化：采用浏览器 prompt
+        const h = window.GuixuHelpers;
+        const name = h.SafeGetValue(item, 'name');
+        const state = window.GuixuState.getState();
+        const pending = (state?.pendingActions || []);
+        const currentQuantity = parseInt(h.SafeGetValue(item, 'quantity', 0), 10);
+        const pendingUses = pending.filter(a => a.action === 'use' && a.itemName === name).reduce((t, a) => t + (a.quantity || 0), 0);
+        const pendingDiscards = pending.filter(a => a.action === 'discard' && a.itemName === name).reduce((t, a) => t + (a.quantity || 0), 0);
+        const available = currentQuantity - pendingUses - pendingDiscards;
+        if (available <= 0) {
+          h.showTemporaryMessage(`${name} 没有可丢弃的数量。`);
+          return;
+        }
+
+        const input = prompt(`请输入要丢弃的数量（1-${available}）：`, '1');
+        const qty = parseInt(input || '0', 10);
+        if (!qty || qty <= 0 || qty > available) {
+          h.showTemporaryMessage('无效的数量');
+          return;
+        }
+        await this.confirmDiscardItem(item, category, qty);
+      } else {
+        await this.confirmDiscardItem(item, category, 1);
+      }
+    },
+
+    async confirmDiscardItem(item, category, quantity = 1) {
+      const h = window.GuixuHelpers;
+      const name = h.SafeGetValue(item, 'name');
+
+      const state = window.GuixuState.getState();
+      const pending = [...(state.pendingActions || [])];
+      pending.push({ action: 'discard', itemName: name, category, quantity });
+
+      window.GuixuState.update('pendingActions', pending);
+
+      if (quantity > 1) h.showTemporaryMessage(`已将 [丢弃 ${quantity} 个 ${name}] 加入指令队列`);
+      else h.showTemporaryMessage(`已将 [丢弃 ${name}] 加入指令队列`);
+
+      await this.show();
+    },
   };
 
   window.InventoryComponent = InventoryComponent;

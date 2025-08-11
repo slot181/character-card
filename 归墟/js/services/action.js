@@ -220,7 +220,7 @@
 
         // --- 存档/读档管理功能 ---
         showSaveLoadManager() {
-            window.GuixuManager.openModal('save-load-modal');
+            window.GuixuBaseModal.open('save-load-modal');
             const manualContainer = GuixuDOM.$('#save-slots-container');
             const autoContainer = GuixuDOM.$('#auto-save-slot-container');
             const autoSaveCheckbox = GuixuDOM.$('#auto-save-checkbox');
@@ -269,7 +269,9 @@
                 const date = new Date(saveData.timestamp).toLocaleString('zh-CN');
                 const jingjie = GuixuHelpers.SafeGetValue(statDataForRender, '当前境界.0', '未知');
                 const jinian = GuixuHelpers.SafeGetValue(statDataForRender, '当前时间纪年.0', '未知');
-                const summary = window.GuixuManager._getDisplayText(saveData.message_content);
+                const summary = (window.GuixuMain && typeof window.GuixuMain._getDisplayText === 'function')
+                  ? window.GuixuMain._getDisplayText(saveData.message_content)
+                  : (saveData.message_content || '');
                 const saveName = saveData.save_name || (isAutoSave ? `自动存档 (${slotId.slice(-1)})` : `存档 ${slotId.split('_')[1]}`);
                 
                 infoDiv.append(
@@ -385,7 +387,9 @@
             };
 
             if (allSaves[slotId]) {
-                window.GuixuManager.showCustomConfirm(`存档位 ${slotId.split('_')[1]} 已有数据，确定要覆盖吗？`, performSave);
+                (window.GuixuMain && typeof window.GuixuMain.showCustomConfirm === 'function')
+                  ? window.GuixuMain.showCustomConfirm(`存档位 ${slotId.split('_')[1]} 已有数据，确定要覆盖吗？`, performSave)
+                  : (confirm(`存档位 ${slotId.split('_')[1]} 已有数据，确定要覆盖吗？`) ? performSave() : void 0);
             } else {
                 await performSave();
             }
@@ -398,7 +402,10 @@
                 GuixuHelpers.showTemporaryMessage('没有找到存档文件。');
                 return;
             }
-            window.GuixuManager.showCustomConfirm(`确定要读取存档"${saveData.save_name}"吗？`, async () => {
+            (window.GuixuMain && typeof window.GuixuMain.showCustomConfirm === 'function'
+              ? window.GuixuMain.showCustomConfirm
+              : (msg, ok) => { if (confirm(msg)) ok(); }
+            )(`确定要读取存档"${saveData.save_name}"吗？`, async () => {
                 try {
                     const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
                     if (!messages || messages.length === 0) throw new Error('无法获取当前消息，无法读档。');
@@ -420,10 +427,9 @@
                     
                     // 延迟执行init，确保SillyTavern完成消息渲染
                     setTimeout(() => {
-                        window.GuixuManager.init().then(() => {
-                            GuixuHelpers.showTemporaryMessage(`读档"${saveData.save_name}"成功！`);
-                            window.GuixuManager.closeAllModals();
-                        });
+                        try { window.GuixuMain?.init?.(); } catch (_) {}
+                        GuixuHelpers.showTemporaryMessage(`读档"${saveData.save_name}"成功！`);
+                        try { window.GuixuBaseModal?.closeAll?.(); } catch (_) {}
                     }, 500);
 
                 } catch (error) {
@@ -438,7 +444,10 @@
             const saveDataToDelete = allSaves[slotId];
             if (!saveDataToDelete) return;
 
-            window.GuixuManager.showCustomConfirm(`确定要删除 "${saveDataToDelete.save_name}" 吗？`, async () => {
+            (window.GuixuMain && typeof window.GuixuMain.showCustomConfirm === 'function'
+              ? window.GuixuMain.showCustomConfirm
+              : (msg, ok) => { if (confirm(msg)) ok(); }
+            )(`确定要删除 "${saveDataToDelete.save_name}" 吗？`, async () => {
                 try {
                     await GuixuState.deleteLorebookBackup(saveDataToDelete);
                     delete allSaves[slotId];
@@ -453,7 +462,10 @@
         },
 
         async clearAllSaves() {
-            window.GuixuManager.showCustomConfirm(`确定要清除所有存档吗？`, async () => {
+            (window.GuixuMain && typeof window.GuixuMain.showCustomConfirm === 'function'
+              ? window.GuixuMain.showCustomConfirm
+              : (msg, ok) => { if (confirm(msg)) ok(); }
+            )(`确定要清除所有存档吗？`, async () => {
                 try {
                     const allSaves = this.getSavesFromStorage();
                     for (const slotId in allSaves) {
