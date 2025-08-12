@@ -12,7 +12,7 @@
     // 背包条目细节块（固定加成/百分比加成/特殊词条）
     renderItemDetailsForInventory(item) {
       let attributesHtml = '';
-      const attributes = item?.attributes_bonus;
+      const attributes = item?.attributes_bonus || item?.['属性加成'];
       if (attributes && typeof attributes === 'object' && Object.keys(attributes).length > 0) {
         attributesHtml += '<div class="tooltip-section-title" style="margin-top: 5px;">固定加成</div>';
         for (const [key, value] of Object.entries(attributes)) {
@@ -20,7 +20,7 @@
         }
       }
 
-      const percentBonuses = item?.['百分比加成'];
+      const percentBonuses = item?.['百分比加成'] || item?.percent_bonus || item?.['百分比'];
       if (percentBonuses && typeof percentBonuses === 'object' && Object.keys(percentBonuses).length > 0) {
         attributesHtml += '<div class="tooltip-section-title" style="margin-top: 5px;">百分比加成</div>';
         for (const [key, value] of Object.entries(percentBonuses)) {
@@ -29,7 +29,7 @@
       }
 
       let effectsHtml = '';
-      let effects = item?.special_effects;
+      let effects = item?.special_effects || item?.['特殊词条'] || item?.effects;
 
       // 兼容：special_effects 可能是字符串（\n 分隔）或数组
       if (typeof effects === 'string' && effects.trim() !== '') {
@@ -56,7 +56,7 @@
         : window.GuixuHelpers.SafeGetValue(item, 'tier', '凡品');
 
       let attributesHtml = '';
-      const attributes = item?.attributes_bonus;
+      const attributes = item?.attributes_bonus || item?.['属性加成'];
       if (attributes && typeof attributes === 'object' && Object.keys(attributes).length > 0) {
         attributesHtml += `<div class="tooltip-section-title">固定加成</div>`;
         for (const [key, value] of Object.entries(attributes)) {
@@ -64,7 +64,7 @@
         }
       }
 
-      const percentBonuses = item?.['百分比加成'];
+      const percentBonuses = item?.['百分比加成'] || item?.percent_bonus || item?.['百分比'];
       if (percentBonuses && typeof percentBonuses === 'object' && Object.keys(percentBonuses).length > 0) {
         attributesHtml += `<div class="tooltip-section-title" style="margin-top: 5px;">百分比加成</div>`;
         for (const [key, value] of Object.entries(percentBonuses)) {
@@ -73,7 +73,7 @@
       }
 
       let effectsHtml = '';
-      let effects = item?.special_effects;
+      let effects = item?.special_effects || item?.['特殊词条'] || item?.effects;
       if (typeof effects === 'string' && effects.trim() !== '') {
         effects = effects.split('\n').map(e => e.trim()).filter(e => e);
       }

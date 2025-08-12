@@ -37,8 +37,11 @@
             };
             state.update('lastSentPrompt', combinedContent);
 
-            // 3. 调用AI生成
-            const aiResponse = await GuixuAPI.generate(generateConfig);
+            // 3. 调用AI生成（统一显示/隐藏等待提示）
+            try { window.GuixuMain?.showWaitingMessage?.(); } catch (_) {}
+            const aiResponse = await GuixuAPI.generate(generateConfig).finally(() => {
+                try { window.GuixuMain?.hideWaitingMessage?.(); } catch (_) {}
+            });
             if (typeof aiResponse !== 'string') {
                 throw new Error('AI未返回有效文本。');
             }
@@ -322,22 +325,27 @@
 
             newContainer.addEventListener('click', (e) => {
                 const target = e.target;
-                const slotDiv = target.closest('.save-slot');
+                const slotDiv = target.closest && target.closest('.save-slot');
                 if (!slotDiv) return;
-                
+
                 const slotId = slotDiv.dataset.slotId;
-                
-                // 修复：确保按钮事件绑定正确，并避免重复触发
+
+                // 使用最近的按钮，增强兼容性
+                const clickedButton = target.closest && target.closest('button');
+                if (!clickedButton) return;
+
                 e.preventDefault();
                 e.stopPropagation();
-                
-                if (target.classList.contains('btn-save-slot') && !target.disabled) {
+
+                if (clickedButton.disabled) return;
+
+                if (clickedButton.classList.contains('btn-save-slot')) {
                     this.saveGame(slotId);
-                } else if (target.classList.contains('btn-load-slot') && !target.disabled) {
+                } else if (clickedButton.classList.contains('btn-load-slot')) {
                     this.loadGame(slotId);
-                } else if (target.classList.contains('btn-export-slot') && !target.disabled) {
+                } else if (clickedButton.classList.contains('btn-export-slot')) {
                     this.exportSave(slotId);
-                } else if (target.classList.contains('btn-delete-slot') && !target.disabled) {
+                } else if (clickedButton.classList.contains('btn-delete-slot')) {
                     this.deleteSave(slotId);
                 }
             });
@@ -407,30 +415,30 @@
               : (msg, ok) => { if (confirm(msg)) ok(); }
             )(`确定要读取存档"${saveData.save_name}"吗？`, async () => {
                 try {
-                    const messages = await GuixuAPI.getChatMessages(GuixuAPI.getCurrentMessageId());
-                    if (!messages || messages.length === 0) throw new Error('无法获取当前消息，无法读档。');
-                    
-                    const messageZero = messages[0];
-                    messageZero.data = saveData.mvu_data;
-                    messageZero.message = saveData.message_content || '';
-
+                    // 优先恢复世界书条目
                     if (saveData.lorebook_entries) {
-                       await GuixuLorebookService.restoreActiveLore(saveData.lorebook_entries, GuixuState.getState().unifiedIndex);
+                        await GuixuLorebookService.restoreActiveLore(saveData.lorebook_entries, GuixuState.getState().unifiedIndex);
                     }
-                    
-                    // 新增：恢复装备状态
+
+                    // 恢复装备状态
                     if (saveData.equipped_items) {
                         GuixuState.update('equippedItems', saveData.equipped_items);
                     }
 
-                    await GuixuAPI.setChatMessages([messageZero], { refresh: 'all' });
-                    
-                    // 延迟执行init，确保SillyTavern完成消息渲染
+                    // 直接设置第 0 楼的数据与正文，并刷新整个聊天
+                    const update = [{
+                        message_id: 0,
+                        message: saveData.message_content || '',
+                        data: saveData.mvu_data
+                    }];
+                    await GuixuAPI.setChatMessages(update, { refresh: 'all' });
+
+                    // 刷新前端 UI 并关闭模态
                     setTimeout(() => {
-                        try { window.GuixuMain?.init?.(); } catch (_) {}
-                        GuixuHelpers.showTemporaryMessage(`读档"${saveData.save_name}"成功！`);
+                        try { window.GuixuMain?.updateDynamicData?.(); } catch (_) {}
                         try { window.GuixuBaseModal?.closeAll?.(); } catch (_) {}
-                    }, 500);
+                        GuixuHelpers.showTemporaryMessage(`读档"${saveData.save_name}"成功！`);
+                    }, 300);
 
                 } catch (error) {
                     console.error('读档失败:', error);

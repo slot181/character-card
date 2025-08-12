@@ -91,6 +91,21 @@
       $('#btn-import-save')?.addEventListener('click', () => document.getElementById('import-file-input')?.click());
       $('#import-file-input')?.addEventListener('change', (e) => window.GuixuActionService?.handleFileImport?.(e));
 
+      // 指令中心（组件未加载时的后备绑定）
+      $('#btn-execute-commands')?.addEventListener('click', () => this.handleAction());
+      $('#btn-clear-commands')?.addEventListener('click', () => {
+        window.GuixuState.update('pendingActions', []);
+        window.GuixuHelpers.showTemporaryMessage('指令已清空');
+        // 立即刷新指令中心内容
+        if (window.CommandCenterComponent?.show) {
+          window.CommandCenterComponent.show();
+        } else {
+          const body = document.querySelector('#command-center-modal .modal-body');
+          if (body) body.innerHTML = '<div class="quick-command-empty">暂无待执行的指令</div>';
+        }
+      });
+      $('#btn-refresh-storage')?.addEventListener('click', () => this.refreshLocalStorage());
+
       // 统一序号输入
       $('#unified-index-input')?.addEventListener('change', (e) => {
         const val = parseInt(e.target.value, 10);
@@ -141,6 +156,62 @@
         const button = $('#btn-quick-commands');
         if (popup && button && popup.style.display === 'block') {
           if (!popup.contains(e.target) && !button.contains(e.target)) this.hideQuickCommands();
+        }
+
+        // 指令中心按钮事件（委托，解决动态渲染导致的失效）
+        const t = e.target;
+        if (t && (t.id === 'btn-execute-commands' || t.id === 'btn-clear-commands' || t.id === 'btn-refresh-storage')) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (t.id === 'btn-execute-commands') this.handleAction();
+          else if (t.id === 'btn-clear-commands') {
+            window.GuixuState.update('pendingActions', []);
+            window.GuixuHelpers.showTemporaryMessage('指令已清空');
+            // 立即刷新指令中心内容（委托情况）
+            if (window.CommandCenterComponent?.show) {
+              window.CommandCenterComponent.show();
+            } else {
+              const body = document.querySelector('#command-center-modal .modal-body');
+              if (body) body.innerHTML = '<div class="quick-command-empty">暂无待执行的指令</div>';
+            }
+          } else if (t.id === 'btn-refresh-storage') {
+            this.refreshLocalStorage();
+          }
+          return;
+        }
+
+        // 通用模态关闭委托：点击右上角X或遮罩空白处关闭
+        const closeBtn = e.target.closest?.('.modal-close-btn');
+        if (closeBtn) {
+          const overlay = closeBtn.closest('.modal-overlay');
+          if (overlay) {
+            overlay.style.display = 'none';
+          } else {
+            window.GuixuBaseModal?.closeAll?.();
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // 点击遮罩空白处关闭（仅当直接点到 overlay 自身时）
+        if (e.target && e.target.classList && e.target.classList.contains('modal-overlay')) {
+          e.target.style.display = 'none';
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      });
+
+      // 按下 ESC 关闭最顶部模态
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          const overlays = Array.from(document.querySelectorAll('.modal-overlay')).filter(el => getComputedStyle(el).display !== 'none');
+          if (overlays.length > 0) {
+            const top = overlays[overlays.length - 1];
+            top.style.display = 'none';
+            e.preventDefault();
+            e.stopPropagation();
+          }
         }
       });
 
@@ -249,6 +320,8 @@
       if (window.GuixuAttributeService?.updateDisplay) {
         window.GuixuAttributeService.updateDisplay();
       }
+      // 渲染天赋与灵根
+      this.renderTalentsAndLinggen(data);
       this.loadEquipmentFromMVU(data);
 
       // 状态效果
@@ -315,7 +388,247 @@
       }
     },
 
+    renderTalentsAndLinggen(data) {
+      const container = document.getElementById('talent-linggen-list');
+      if (!container) return;
+      let html = '';
+
+      // 灵根列表
+      try {
+        const linggenList = window.GuixuAPI.lodash.get(data, '灵根列表.0', []);
+        if (Array.isArray(linggenList) && linggenList.length > 0) {
+          const parsed = [];
+          const source = linggenList.filter(x => x !== '$__META_EXTENSIBLE__$');
+
+          // 简易 YAML/文本解析器：将松散格式解析为对象，尽可能捕捉 attributes_bonus / 百分比加成 / special_effects
+          const parseLooseLinggen = (text) => {
+            try {
+              if (typeof text !== 'string') return null;
+              // 去掉列表前缀与制表缩进
+              const lines = text
+                .split('\n')
+                .map(l => l.replace(/^\s*-\s*-\s*/, '').replace(/^\s*-\s*/, '').replace(/^\t+/, '').trim())
+                .filter(l => l.length > 0);
+
+              const obj = {};
+              let mode = null; // 'effects' | 'flat' | 'percent'
+              obj['attributes_bonus'] = {};
+              obj['百分比加成'] = {};
+              obj['special_effects'] = [];
+
+              for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                // 匹配 "key: value"
+                const kv = line.match(/^([^:：]+)\s*[:：]\s*(.*)$/);
+                if (kv) {
+                  const key = kv[1].trim();
+                  const val = kv[2].trim();
+
+                  // 进入分节模式
+                  if (key === 'attributes_bonus' || key === '属性加成') {
+                    mode = 'flat';
+                    continue;
+                  }
+                  if (key === '百分比加成' || key === 'percent_bonus') {
+                    mode = 'percent';
+                    continue;
+                  }
+                  if (key === 'special_effects' || key === '特殊词条') {
+                    mode = 'effects';
+                    continue;
+                  }
+
+                  // 普通键值
+                  mode = null;
+                  if (key === '名称' || key.toLowerCase() === 'name' || key === '灵根名称' || key === 'title') {
+                    obj['名称'] = val;
+                  } else if (key === '品阶' || key.toLowerCase() === 'tier' || key === '等级' || key.toLowerCase() === 'rank') {
+                    obj['品阶'] = val;
+                  } else if (key === '描述' || key.toLowerCase() === 'description' || key === '说明') {
+                    obj['描述'] = val;
+                  } else if (key === 'id' || key.toLowerCase() === 'uid') {
+                    obj['id'] = val;
+                  } else {
+                    // 其他未知键，直接挂到对象根部
+                    obj[key] = val;
+                  }
+                  continue;
+                }
+
+                // 分节模式下的条目
+                if (mode === 'effects') {
+                  // 以 "- " 开头的当作词条
+                  const em = line.replace(/^\-\s*/, '').trim();
+                  if (em) obj['special_effects'].push(em);
+                  continue;
+                }
+                if (mode === 'flat' || mode === 'percent') {
+                  // 形如 "神海: 4" 或 "神海: 10%"
+                  const kv2 = line.match(/^([^:：]+)\s*[:：]\s*(.*)$/);
+                  if (kv2) {
+                    const k2 = kv2[1].trim();
+                    const v2raw = kv2[2].trim();
+                    if (mode === 'flat') {
+                      const n = parseInt(v2raw, 10);
+                      obj['attributes_bonus'][k2] = Number.isFinite(n) ? n : v2raw;
+                    } else {
+                      obj['百分比加成'][k2] = v2raw;
+                    }
+                  }
+                  continue;
+                }
+              }
+
+              // 清理空容器
+              if (Object.keys(obj['attributes_bonus']).length === 0) delete obj['attributes_bonus'];
+              if (Object.keys(obj['百分比加成']).length === 0) delete obj['百分比加成'];
+              if (Array.isArray(obj['special_effects']) && obj['special_effects'].length === 0) delete obj['special_effects'];
+
+              // 保底名称
+              if (!obj['名称']) obj['名称'] = '未知灵根';
+              if (!obj['品阶']) obj['品阶'] = '凡品';
+              if (!obj['描述']) obj['描述'] = '';
+
+              return obj;
+            } catch (_) {
+              return null;
+            }
+          };
+
+          source.forEach(raw => {
+            if (!raw) return;
+            try {
+              // 优先 JSON
+              const obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+              if (obj && typeof obj === 'object') {
+                parsed.push(obj);
+              } else if (typeof raw === 'string') {
+                const loose = parseLooseLinggen(raw);
+                parsed.push(loose || { '名称': raw, '品阶': '凡品', '描述': '' });
+              }
+            } catch (e) {
+              // 尝试松散解析
+              const loose = (typeof raw === 'string') ? parseLooseLinggen(raw) : null;
+              if (loose) {
+                parsed.push(loose);
+              } else if (typeof raw === 'string') {
+                parsed.push({ '名称': raw, '品阶': '凡品', '描述': '' });
+              } else {
+                console.warn('[归墟] 解析灵根失败:', raw, e);
+              }
+            }
+          });
+          const sorted = window.GuixuHelpers.sortByTier(parsed, it => {
+            const cnTier = window.GuixuHelpers.SafeGetValue(it, '品阶', '');
+            return cnTier || window.GuixuHelpers.SafeGetValue(it, 'tier', '凡品');
+          });
+          sorted.forEach(item => {
+            const unwrap = (v) => (Array.isArray(v) ? (v.length ? v[0] : '') : v);
+            const gv = (obj, path, def = '') => {
+              try { const val = window.GuixuHelpers.SafeGetValue(obj, path, def); return unwrap(val); } catch (_) { return def; }
+            };
+            const pick = (obj, candidates, def = '') => {
+              for (const p of candidates) {
+                const val = gv(obj, p, '');
+                if (val !== '' && val !== 'N/A') return val;
+              }
+              return def;
+            };
+            const normalized = (Array.isArray(item) && item.length) ? item[0] : item;
+            const name = pick(normalized, ['名称', 'name', '灵根名称', 'title', 'data.名称', 'data.name'], '未知灵根');
+            const tier = pick(normalized, ['品阶', 'tier', '等级', 'rank', 'data.品阶', 'data.tier'], '凡品');
+            const desc = pick(normalized, ['描述', 'description', '说明', 'data.描述', 'data.description'], '无描述');
+            const color = window.GuixuHelpers.getTierColorStyle(tier);
+            const details = window.GuixuRenderers?.renderItemDetailsForInventory
+              ? window.GuixuRenderers.renderItemDetailsForInventory(normalized)
+              : '';
+            html += `
+              <details class="details-container">
+                <summary>
+                  <span class="attribute-name">灵根</span>
+                  <span class="attribute-value" style="${color}">【${tier}】 ${name}</span>
+                </summary>
+                <div class="details-content">
+                  <p>${desc}</p>
+                  ${details ? `<div class="item-details">${details}</div>` : ''}
+                </div>
+              </details>
+            `;
+          });
+        } else {
+          html += `
+            <div class="attribute-item">
+              <span class="attribute-name">灵根</span>
+              <span class="attribute-value">未觉醒</span>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.warn('[归墟] 渲染灵根失败:', e);
+      }
+
+      // 天赋列表
+      try {
+        const talents = window.GuixuAPI.lodash.get(data, '天赋列表.0', []);
+        if (Array.isArray(talents) && talents.length > 0) {
+          const parsed = [];
+          const source = talents.filter(x => x !== '$__META_EXTENSIBLE__$');
+          source.forEach(raw => {
+            try {
+              const obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+              if (obj && typeof obj === 'object') {
+                parsed.push(obj);
+              } else if (typeof raw === 'string') {
+                // 兜底：无法解析为 JSON 时，将整串作为名称展示
+                parsed.push({ name: raw, tier: '凡品', description: '' });
+              }
+            } catch (e) {
+              console.warn('[归墟] 解析天赋失败:', raw, e);
+              if (typeof raw === 'string') {
+                parsed.push({ name: raw, tier: '凡品', description: '' });
+              }
+            }
+          });
+          const sorted = window.GuixuHelpers.sortByTier(parsed, it => window.GuixuHelpers.SafeGetValue(it, 'tier', '凡品'));
+          sorted.forEach(item => {
+            const name = window.GuixuHelpers.SafeGetValue(item, 'name', '未知天赋');
+            const tier = window.GuixuHelpers.SafeGetValue(item, 'tier', '凡品');
+            const desc = window.GuixuHelpers.SafeGetValue(item, 'description', '无描述');
+            const color = window.GuixuHelpers.getTierColorStyle(tier);
+            const details = window.GuixuRenderers?.renderItemDetailsForInventory
+              ? window.GuixuRenderers.renderItemDetailsForInventory(item)
+              : '';
+            html += `
+              <details class="details-container">
+                <summary>
+                  <span class="attribute-name">天赋</span>
+                  <span class="attribute-value" style="${color}">【${tier}】 ${name}</span>
+                </summary>
+                <div class="details-content">
+                  <p>${desc}</p>
+                  ${details ? `<div class="item-details">${details}</div>` : ''}
+                </div>
+              </details>
+            `;
+          });
+        } else {
+          html += `
+            <div class="attribute-item">
+              <span class="attribute-name">天赋</span>
+              <span class="attribute-value">未觉醒</span>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.warn('[归墟] 渲染天赋失败:', e);
+      }
+
+      container.innerHTML = html;
+    },
+
     async handleAction(userMessage = '') {
+      this.showWaitingMessage();
       try {
         const { newMvuState, aiResponse } = await window.GuixuActionService.handleAction(userMessage);
         // 更新 UI
@@ -330,6 +643,7 @@
         console.error('[归墟] 处理动作时出错:', error);
         window.GuixuHelpers.showTemporaryMessage(`和伟大梦星沟通失败: ${error.message}`);
       } finally {
+        this.hideWaitingMessage();
         // 再次同步最新数据（兜底）
         await this.updateDynamicData();
       }
@@ -374,6 +688,61 @@
       processedText = processedText.replace(/\*([^*]+)\*/g, (m, p1) => `<span class="text-psychology">${p1}</span>`);
       processedText = processedText.replace(/【([^】\d]+[^】]*)】/g, (m, p1) => `<span class="text-scenery">${p1}</span>`);
       return processedText;
+    },
+
+    showWaitingMessage() {
+      try {
+        const existing = document.getElementById('waiting-popup');
+        if (existing) existing.remove();
+        const messages = window.GuixuConstants?.WAITING_MESSAGES || [];
+        const msg = messages.length > 0 ? messages[Math.floor(Math.random() * messages.length)] : '正在请求伟大梦星...';
+        const div = document.createElement('div');
+        div.id = 'waiting-popup';
+        div.className = 'waiting-popup';
+        div.style.cssText = `
+          position: fixed;
+          top: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 10002;
+          background: rgba(26, 26, 46, 0.95);
+          color: #c9aa71;
+          border: 1px solid #c9aa71;
+          border-radius: 8px;
+          padding: 10px 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          box-shadow: 0 0 20px rgba(201, 170, 113, 0.3);
+          font-size: 13px;
+          font-weight: 600;
+        `;
+        const spinner = document.createElement('div');
+        spinner.className = 'waiting-spinner';
+        spinner.style.cssText = `
+          width: 14px;
+          height: 14px;
+          border: 2px solid #c9aa71;
+          border-right-color: transparent;
+          border-radius: 50%;
+          margin-right: 4px;
+        `;
+        const span = document.createElement('span');
+        span.textContent = msg;
+        div.appendChild(spinner);
+        div.appendChild(span);
+        const container = document.querySelector('.guixu-root-container') || document.body;
+        container.appendChild(div);
+      } catch (e) {
+        console.warn('[归墟] showWaitingMessage 失败:', e);
+      }
+    },
+
+    hideWaitingMessage() {
+      try {
+        const existing = document.getElementById('waiting-popup');
+        if (existing) existing.remove();
+      } catch (_) {}
     },
 
     _extractLastTagContent(tagName, text, ignoreCase = false) {
@@ -502,6 +871,8 @@
         okBtn.addEventListener('click', okHandler, { once: true });
         cancelBtn.addEventListener('click', cancelHandler, { once: true });
 
+        // 始终置于最顶层，避免被其他模态遮挡
+        overlay.style.zIndex = '9000';
         overlay.style.display = 'flex';
       } catch (e) {
         console.error('[归墟] 自定义确认弹窗失败:', e);
@@ -511,9 +882,29 @@
           if (typeof onCancel === 'function') onCancel();
         }
       }
-    },
+      },
 
-    async trimJourneyAutomation() {
+      // 浏览器端本地缓存刷新（后备实现）
+      refreshLocalStorage() {
+        try {
+          this.showCustomConfirm('这是为了刷新上一个聊天缓存数据，如果不是打开新聊天，请不要点击', () => {
+            try {
+              localStorage.removeItem('guixu_equipped_items');
+              localStorage.removeItem('guixu_pending_actions');
+              localStorage.removeItem('guixu_auto_write_enabled');
+              window.GuixuHelpers.showTemporaryMessage('缓存已清除，页面即将刷新...');
+              setTimeout(() => window.location.reload(), 1000);
+            } catch (e) {
+              console.error('[归墟] 清除本地存储失败:', e);
+              window.GuixuHelpers.showTemporaryMessage('清除缓存失败！');
+            }
+          });
+        } catch (e) {
+          console.error('[归墟] refreshLocalStorage 出错:', e);
+        }
+      },
+
+      async trimJourneyAutomation() {
       try {
         const idxEl = document.getElementById('trim-journey-index-input');
         const targetIndex = idxEl ? parseInt(idxEl.value, 10) : (window.GuixuState?.getState?.().unifiedIndex || 1);
