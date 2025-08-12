@@ -153,8 +153,9 @@
                 }
               }
 
-              // 所有物品都可丢弃
-              actionButton += `<button class="item-discard-btn" style="margin-left: 5px; background: #8b0000; border-color: #ff6b6b;">丢弃</button>`;
+              // 所有物品都可丢弃或彻底删除
+              actionButton += `<button class="item-discard-btn" style="margin-left: 5px;">丢弃</button>`;
+              actionButton += `<button class="interaction-btn item-delete-btn danger-btn" style="margin-left: 5px;">彻底删除</button>`;
 
               // 细节说明使用通用渲染工具，避免重复实现
               const itemDetailsHtml = (window.GuixuRenderers && typeof window.GuixuRenderers.renderItemDetailsForInventory === 'function')
@@ -220,6 +221,8 @@
           await this.useItem(item);
         } else if (target.classList.contains('item-discard-btn')) {
           await this.discardItem(item, category);
+        } else if (target.classList.contains('item-delete-btn')) {
+          await this.deleteItem(item, category);
         }
       });
     },
@@ -270,6 +273,9 @@
         slotEl.classList.add('equipped');
         slotEl.dataset.itemDetails = JSON.stringify(item).replace(/'/g, "'");
       }
+
+      // 实时写入装备到变量
+      await this.persistEquipmentToVariables(slotKey, item);
 
       // 加入指令队列
       const pending = [...(state.pendingActions || [])];
@@ -329,6 +335,9 @@
       slotEl.classList.remove('equipped');
       slotEl.removeAttribute('style');
       delete slotEl.dataset.itemDetails;
+
+      // 实时写回变量（清空该槽位）
+      await this.persistEquipmentToVariables(slotKey, null);
 
       // 加队列
       const pending = [...(state.pendingActions || [])].filter(a => !(a.action === 'unequip' && a.itemName === itemName));
@@ -410,6 +419,159 @@
       else h.showTemporaryMessage(`已将 [丢弃 ${name}] 加入指令队列`);
 
       await this.show();
+    },
+
+    // 逻辑：彻底删除（直接修改数据）
+    async deleteItem(item, category) {
+      const h = window.GuixuHelpers;
+      const itemName = h.SafeGetValue(item, 'name', '未知物品');
+      const itemId = h.SafeGetValue(item, 'id');
+
+      const confirmed = await new Promise(resolve => 
+        window.GuixuMain.showCustomConfirm(
+          `确定要彻底删除【${itemName}】吗？此操作不可逆，将直接从角色数据中移除，且不会通知AI。`,
+          () => resolve(true),
+          () => resolve(false)
+        )
+      );
+
+      if (!confirmed) {
+        h.showTemporaryMessage('操作已取消');
+        return;
+      }
+
+      try {
+        // 1. 获取当前最新的 stat_data
+        const messages = await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId());
+        if (!messages || !messages[0] || !messages[0].data || !messages[0].data.stat_data) {
+          throw new Error('无法获取角色数据。');
+        }
+        const currentMvuState = messages[0].data;
+        const stat_data = currentMvuState.stat_data;
+
+        // 2. 找到对应的列表并删除项目
+        const categoryMap = {
+          '功法': '功法列表', '武器': '武器列表', '防具': '防具列表',
+          '饰品': '饰品列表', '法宝': '法宝列表', '丹药': '丹药列表', '杂物': '其他列表'
+        };
+        const listKey = categoryMap[category];
+        if (!listKey || !stat_data[listKey] || !Array.isArray(stat_data[listKey][0])) {
+          throw new Error(`找不到对应的物品列表: ${listKey}`);
+        }
+
+        const list = stat_data[listKey][0];
+        const itemIndex = list.findIndex(i => {
+          const parsed = typeof i === 'string' ? JSON.parse(i) : i;
+          // 优先使用ID匹配，如果ID不存在或不匹配，则使用名称进行模糊匹配
+          if (itemId && itemId !== 'N/A') {
+            return parsed.id === itemId;
+          }
+          return parsed.name === itemName;
+        });
+
+        if (itemIndex === -1) {
+          throw new Error(`在列表中未找到物品: ${itemName}`);
+        }
+
+        // 从数组中移除
+        list.splice(itemIndex, 1);
+
+        // 3. 将修改后的数据写回
+        await window.GuixuAPI.setChatMessages([{
+          message_id: 0,
+          data: currentMvuState,
+        }], { refresh: 'none' });
+
+        // 若该物品正被装备，立即清空对应槽位（变量 + 状态 + UI）
+        try {
+          const state = window.GuixuState.getState();
+          const equipped = { ...(state.equippedItems || {}) };
+          const slots = ['wuqi', 'fangju', 'shipin', 'fabao1', 'zhuxiuGongfa', 'fuxiuXinfa'];
+          for (const slotKey of slots) {
+            const eq = equipped[slotKey];
+            if (eq && ((itemId && eq.id === itemId) || eq.name === itemName)) {
+              equipped[slotKey] = null;
+              // 写回变量
+              await this.persistEquipmentToVariables(slotKey, null);
+              // 更新槽位UI（兜底，避免等待全量刷新）
+              const $ = (sel, ctx = document) => ctx.querySelector(sel);
+              const slotEl = $(`#equip-${slotKey}`);
+              if (slotEl) {
+                const defaultTextMap = {
+                  wuqi: '武器',
+                  fangju: '防具',
+                  shipin: '饰品',
+                  fabao1: '法宝',
+                  zhuxiuGongfa: '主修功法',
+                  fuxiuXinfa: '辅修心法',
+                };
+                slotEl.textContent = defaultTextMap[slotKey] || '空';
+                slotEl.classList.remove('equipped');
+                slotEl.removeAttribute('style');
+                delete slotEl.dataset.itemDetails;
+              }
+            }
+          }
+          window.GuixuState.update('equippedItems', equipped);
+        } catch (clearErr) {
+          console.warn('[归墟] 删除物品后清理装备槽位失败:', clearErr);
+        }
+
+        h.showTemporaryMessage(`【${itemName}】已彻底删除。`);
+
+        // 4. 刷新UI
+        await this.show();
+        // 同步主界面
+        if (window.GuixuMain?.updateDynamicData) {
+          window.GuixuMain.updateDynamicData();
+        }
+
+      } catch (error) {
+        console.error('彻底删除物品时出错:', error);
+        h.showTemporaryMessage(`删除失败: ${error.message}`);
+      }
+    },
+
+    // 将装备变动实时写入到酒馆变量（当前楼层与第0楼）
+    async persistEquipmentToVariables(slotKey, itemOrNull) {
+      try {
+        const currentId = window.GuixuAPI.getCurrentMessageId();
+        const messages = await window.GuixuAPI.getChatMessages(currentId);
+        if (!messages || !messages[0]) return;
+        const currentMvuState = messages[0].data || {};
+        currentMvuState.stat_data = currentMvuState.stat_data || {};
+        const mvuKey = this.getMvuKeyForSlotKey(slotKey);
+        if (!mvuKey) return;
+
+        // 设置或清空装备
+        if (itemOrNull) {
+          currentMvuState.stat_data[mvuKey] = [itemOrNull];
+        } else {
+          currentMvuState.stat_data[mvuKey] = [];
+        }
+
+        // 写回当前楼层与第0楼
+        const updates = [{ message_id: currentId, data: currentMvuState }];
+        if (currentId !== 0) updates.push({ message_id: 0, data: currentMvuState });
+        await window.GuixuAPI.setChatMessages(updates, { refresh: 'none' });
+
+        // 同步前端缓存
+        window.GuixuState.update('currentMvuState', currentMvuState);
+      } catch (e) {
+        console.warn('[归墟] persistEquipmentToVariables 失败:', e);
+      }
+    },
+
+    getMvuKeyForSlotKey(slotKey) {
+      const map = {
+        wuqi: '武器',
+        zhuxiuGongfa: '主修功法',
+        fuxiuXinfa: '辅修心法',
+        fangju: '防具',
+        shipin: '饰品',
+        fabao1: '法宝栏1',
+      };
+      return map[slotKey] || null;
     },
   };
 

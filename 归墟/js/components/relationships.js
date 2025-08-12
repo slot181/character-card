@@ -68,10 +68,14 @@
           const favorabilityPercent = Math.max(0, Math.min(100, (favorability / 200) * 100)); // 假设好感度上限为200
           const cultivationDisplay = level ? `${tier} ${level}` : tier;
 
+          const relJson = JSON.stringify(rel).replace(/'/g, "'");
           html += `
-            <div class="relationship-card">
+            <div class="relationship-card" data-relationship-details='${relJson}'>
+              <div class="relationship-header">
+                  <p class="relationship-name" style="${tierStyle}">${name}</p>
+                  <button class="interaction-btn danger-btn btn-delete-relationship" style="padding: 4px 8px; font-size: 12px;">彻底删除</button>
+              </div>
               <div class="relationship-body">
-                <p class="relationship-name" style="${tierStyle}">${name}</p>
                 <p>${description}</p>
 
                 <div class="relationship-meta">
@@ -108,7 +112,115 @@
       });
 
       return html || '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">红尘俗世，暂无纠葛。</p>';
-    }
+    },
+
+    bindEvents(container) {
+        container.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('btn-delete-relationship')) {
+                const card = e.target.closest('.relationship-card');
+                if (card) {
+                    const relData = JSON.parse(card.dataset.relationshipDetails.replace(/'/g, "'"));
+                    await this.deleteRelationship(relData);
+                }
+            }
+        });
+    },
+
+    async deleteRelationship(relToDelete) {
+        const h = window.GuixuHelpers;
+        const relName = h.SafeGetValue(relToDelete, 'name', '未知之人');
+
+        const confirmed = await new Promise(resolve => 
+            window.GuixuMain.showCustomConfirm(
+                `确定要彻底删除与【${relName}】的关系吗？此操作不可逆，将直接从角色数据中移除。`,
+                () => resolve(true),
+                () => resolve(false)
+            )
+        );
+
+        if (!confirmed) {
+            h.showTemporaryMessage('操作已取消');
+            return;
+        }
+
+        try {
+            const messages = await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId());
+            if (!messages || !messages[0] || !messages[0].data || !messages[0].data.stat_data) {
+                throw new Error('无法获取角色数据。');
+            }
+            const currentMvuState = messages[0].data;
+            const stat_data = currentMvuState.stat_data;
+
+            const listKey = '人物关系列表';
+            if (!stat_data[listKey] || !Array.isArray(stat_data[listKey][0])) {
+                throw new Error('找不到人物关系列表。');
+            }
+
+            const list = stat_data[listKey][0];
+            const relIndex = list.findIndex(r => {
+                const parsed = typeof r === 'string' ? JSON.parse(r) : r;
+                return parsed.name === relName;
+            });
+
+            if (relIndex === -1) {
+                throw new Error(`在列表中未找到人物: ${relName}`);
+            }
+
+            list.splice(relIndex, 1);
+
+            await window.GuixuAPI.setChatMessages([{
+                message_id: 0,
+                data: currentMvuState,
+            }], { refresh: 'none' });
+
+            h.showTemporaryMessage(`与【${relName}】的关系已彻底删除。`);
+            await this.show();
+            // 同步主界面（如有装备信息联动）
+            if (window.GuixuMain?.updateDynamicData) {
+              window.GuixuMain.updateDynamicData();
+            }
+
+        } catch (error) {
+            console.error('彻底删除人物关系时出错:', error);
+            h.showTemporaryMessage(`删除失败: ${error.message}`);
+        }
+    },
+
+    async show() {
+      const { $ } = window.GuixuDOM;
+      window.GuixuBaseModal.open('relationships-modal');
+
+      const body = $('#relationships-modal .modal-body');
+      if (!body) return;
+
+      body.innerHTML = '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">正在梳理人脉...</p>';
+
+      try {
+        const messages = await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId());
+        const stat_data = messages?.[0]?.data?.stat_data;
+        if (!stat_data) {
+          body.innerHTML = '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取人物关系数据。</p>';
+          return;
+        }
+
+        let relationships = stat_data['人物关系列表']?.[0];
+
+        if (typeof relationships === 'string') {
+          try {
+            relationships = JSON.parse(relationships);
+          } catch (e) {
+            console.error('[归墟] 解析人物关系列表字符串失败:', e);
+            relationships = [];
+          }
+        }
+
+        body.innerHTML = this.render(relationships || []);
+        this.bindEvents(body); // 重新绑定事件
+      } catch (error) {
+        console.error('[归墟] 加载人物关系时出错:', error);
+        body.innerHTML = `<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载人物关系时出错: ${error.message}</p>`;
+      }
+    },
   };
 
   window.RelationshipsComponent = RelationshipsComponent;

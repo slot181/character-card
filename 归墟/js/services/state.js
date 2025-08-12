@@ -214,6 +214,13 @@
           const allSaves = JSON.parse(localStorage.getItem('guixu_multi_save_data') || '{}');
           const slot0 = allSaves['auto_save_slot_0'];
 
+          // 仅在对话内容发生变化时才进行自动存档（避免装备/卸下等UI变量改动触发自动存档轮换）
+          const currentMessageContent = (await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId()))?.[0]?.message || '';
+          if (slot0 && slot0.message_content === currentMessageContent) {
+            console.log('[归墟] 自动存档跳过：对话未变化（仅变量或UI变更）。');
+            return;
+          }
+
           if (slot0) {
             const currentStateString = JSON.stringify(this.currentMvuState.stat_data);
             const latestSaveStateString = JSON.stringify(slot0.mvu_data.stat_data);
@@ -240,7 +247,6 @@
           }
 
           const newSaveName = `自动存档(最新) - ${new Date().toLocaleString('sv-SE')}`;
-          const currentMessageContent = (await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId()))?.[0]?.message || '';
           
           const lorebookEntries = {
             journey_entry_name: `${newSaveName}-本世历程`,

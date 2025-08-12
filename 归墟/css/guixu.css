@@ -1351,3 +1351,49 @@
   /* 拉长悬浮框 */
   max-width: 90%;
 }
+
+/* 统一危险按钮风格（与整体UI一致） */
+.danger-btn {
+  background: #8b0000;
+  border: 1px solid #ff6b6b;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.danger-btn:hover {
+  background: #a52a2a;
+}
+
+/* 彻底删除按钮与"丢弃"按钮保持完全一致的尺寸与配色 */
+.item-delete-btn {
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  background: #8b0000 !important;
+  border: 1px solid #ff6b6b !important;
+  color: #fff !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  transition: background 0.3s !important;
+  margin-left: 5px !important;
+  line-height: 1.2 !important;
+}
+.item-delete-btn:hover {
+  background: #a52a2a !important;
+}
+
+/* 人物关系的删除按钮也与"丢弃"按钮保持一致 */
+.btn-delete-relationship {
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  background: #8b0000 !important;
+  border: 1px solid #ff6b6b !important;
+  color: #fff !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  transition: background 0.3s !important;
+  line-height: 1.2 !important;
+}
+.btn-delete-relationship:hover {
+  background: #a52a2a !important;
+}

@@ -228,12 +228,12 @@
           if (!slot) return;
           this.hideEquipmentTooltip();
         });
-        characterPanel.addEventListener('click', async (e) => {
+        characterPanel.addEventListener('click', (e) => {
           const slot = e.target.closest('.equipment-slot');
-          if (!slot || !slot.classList.contains('equipped')) return;
-          // 复用 InventoryComponent 的卸载逻辑
-          if (window.InventoryComponent?.unequipItem) {
-            await window.InventoryComponent.unequipItem(slot.id, false);
+          if (slot && slot.classList.contains('equipped')) {
+            // 阻止点击事件，仅用于显示提示。
+            e.preventDefault();
+            window.GuixuHelpers.showTemporaryMessage('请在背包中卸下装备。');
           }
         });
       }
