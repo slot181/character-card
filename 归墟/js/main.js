@@ -35,6 +35,7 @@
       this.bindTopLevelListeners();
 
       // 初始数据加载与渲染
+      this.applyUserPreferences();
       this.updateDynamicData().catch(err => console.error('[归墟] 初次加载失败:', err));
     },
 
@@ -81,6 +82,7 @@
       $('#btn-guixu-system')?.addEventListener('click', () => window.GuixuSystemComponent?.show?.());
       $('#btn-show-extracted')?.addEventListener('click', () => window.ExtractedContentComponent?.show?.());
       $('#btn-save-load-manager')?.addEventListener('click', () => window.GuixuActionService?.showSaveLoadManager?.());
+      $('#btn-settings')?.addEventListener('click', () => window.SettingsComponent?.show?.());
 
       // 世界线回顾
       $('#btn-view-journey-main')?.addEventListener('click', () => window.JourneyComponent?.show?.());
@@ -743,6 +745,34 @@
         const existing = document.getElementById('waiting-popup');
         if (existing) existing.remove();
       } catch (_) {}
+    },
+
+    // 应用用户主题偏好（背景、遮罩、字号）
+    applyUserPreferences(prefsOverride = null) {
+      try {
+        const container = document.querySelector('.guixu-root-container');
+        if (!container) return;
+        const state = window.GuixuState?.getState?.();
+        const defaults = { backgroundUrl: '', bgMaskOpacity: 0.7, storyFontSize: 14 };
+        const prefs = Object.assign({}, defaults, (prefsOverride || state?.userPreferences || {}));
+
+        // 遮罩透明度（0~0.8）
+        const mask = Math.min(0.8, Math.max(0, Number(prefs.bgMaskOpacity ?? defaults.bgMaskOpacity)));
+        container.style.setProperty('--guixu-bg-mask', String(mask));
+
+        // 正文字号（12~20px）
+        const fontPx = Math.round(Number(prefs.storyFontSize ?? defaults.storyFontSize));
+        container.style.setProperty('--guixu-story-font-size', `${fontPx}px`);
+
+        // 背景图
+        if (prefs.backgroundUrl && typeof prefs.backgroundUrl === 'string' && prefs.backgroundUrl.trim() !== '') {
+          container.style.backgroundImage = `url("${prefs.backgroundUrl.trim()}")`;
+        } else {
+          container.style.backgroundImage = '';
+        }
+      } catch (e) {
+        console.warn('[归墟] 应用用户主题偏好失败:', e);
+      }
     },
 
     _extractLastTagContent(tagName, text, ignoreCase = false) {

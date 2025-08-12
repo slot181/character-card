@@ -43,6 +43,11 @@
     isAutoToggleLorebookEnabled: false,
     isAutoSaveEnabled: false,
     isAutoTrimEnabled: false,
+    userPreferences: {
+      backgroundUrl: '',
+      bgMaskOpacity: 0.7,
+      storyFontSize: 14
+    },
 
     // --- 计时器ID ---
     autoWriteIntervalId: null,
@@ -62,6 +67,7 @@
       this.loadStateFromStorage('guixu_auto_toggle_enabled', 'isAutoToggleLorebookEnabled', false);
       this.loadStateFromStorage('guixu_auto_save_enabled', 'isAutoSaveEnabled', false);
       this.loadStateFromStorage('guixu_auto_trim_enabled', 'isAutoTrimEnabled', false);
+      this.loadStateFromStorage('guixu_user_preferences', 'userPreferences', { backgroundUrl: '', bgMaskOpacity: 0.7, storyFontSize: 14 });
     },
 
     // --- 状态存取辅助函数 ---
@@ -111,6 +117,7 @@
                 isAutoToggleLorebookEnabled: 'guixu_auto_toggle_enabled',
                 isAutoSaveEnabled: 'guixu_auto_save_enabled',
                 isAutoTrimEnabled: 'guixu_auto_trim_enabled',
+                userPreferences: 'guixu_user_preferences',
             };
             if (storageMap[key]) {
                 let valueToStore = value;

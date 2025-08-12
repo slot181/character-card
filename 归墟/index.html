@@ -12,7 +12,8 @@
 <body>
   <!-- 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享 -->
   <div class="guixu-root-container">
-    <!-- 视图切换按钮 -->
+    <!-- 视图/设置按钮 -->
+    <button id="btn-settings" class="settings-btn" title="设置">⚙️</button>
     <button id="view-toggle-btn" class="view-toggle-btn" title="切换视图">📱</button>
 
     <div class="game-container">
@@ -321,6 +322,52 @@
         </div>
       </div>
     </div>
+    <div id="settings-modal" class="modal-overlay">
+      <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+          <h2 class="modal-title">设置中心</h2>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="panel-section">
+            <div class="section-title">背景图</div>
+            <div class="attributes-list" style="padding: 10px;">
+              <div class="attribute-item" style="gap:8px; align-items:center;">
+                <span class="attribute-name" style="min-width:70px;">URL</span>
+                <input id="pref-bg-url" type="text" placeholder="https://..." style="flex:1; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px;">
+                <button id="pref-bg-upload" class="interaction-btn" style="padding: 4px 8px; font-size: 12px;">本地上传</button>
+                <button id="pref-bg-clear" class="interaction-btn" style="padding: 4px 8px; font-size: 12px;">清除背景</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-section">
+            <div class="section-title">背景遮罩透明度</div>
+            <div class="attributes-list" style="padding: 10px;">
+              <div class="attribute-item" style="gap:10px; align-items:center;">
+                <input id="pref-bg-mask" type="range" min="0" max="0.8" step="0.01" style="flex:1;">
+                <span id="pref-bg-mask-val" class="attribute-value">0.70</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-section">
+            <div class="section-title">故事文本字号</div>
+            <div class="attributes-list" style="padding: 10px;">
+              <div class="attribute-item" style="gap:10px; align-items:center;">
+                <input id="pref-story-font-size" type="range" min="12" max="20" step="1" style="flex:1;">
+                <span id="pref-story-font-size-val" class="attribute-value">14px</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="command-center-footer">
+          <button id="pref-reset-defaults" class="interaction-btn">恢复默认</button>
+          <div>
+            <button id="pref-apply" class="interaction-btn">应用</button>
+            <button id="pref-save-close" class="interaction-btn primary-btn" style="margin-left: 10px;">保存并关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <input type="file" id="import-file-input" style="display: none;" accept=".json" />
   </div>
 
@@ -339,6 +386,7 @@
 
   <!-- 新增：组件脚本（在 UI 协调器之前加载） -->
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/modal.js"></script>
+  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/settings.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/inventory.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/relationships.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/character-details.js"></script>

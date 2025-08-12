@@ -3,6 +3,8 @@
 
 /* --- 基础与布局 --- */
 .guixu-root-container {
+  --guixu-story-font-size: 14px;
+  --guixu-bg-mask: 0.7;
   font-family: 'ZCOOL+KuaiLe', 'Ma+Shan+Zheng', serif;
   background-size: cover;
   background-position: center;
@@ -29,7 +31,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 15, 35, 0.7);
+  background: rgba(15, 15, 35, var(--guixu-bg-mask, 0.7));
   z-index: 1;
 }
 
@@ -427,7 +429,7 @@
 }
 
 .game-text-container {
-  font-size: 14px;
+  font-size: var(--guixu-story-font-size, 14px);
   line-height: 1.8;
   color: #e0dcd1;
   white-space: pre-wrap;
@@ -1046,6 +1048,29 @@
 }
 
 .view-toggle-btn:hover {
+  background-color: rgba(45, 27, 61, 0.9);
+}
+
+/* 设置按钮（左上角，与视图按钮风格统一） */
+.settings-btn {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 35px;
+  height: 35px;
+  background: rgba(15, 15, 35, 0.8);
+  border: 1px solid #c9aa71;
+  color: #c9aa71;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 100;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s;
+}
+.settings-btn:hover {
   background-color: rgba(45, 27, 61, 0.9);
 }
 
