@@ -89,7 +89,6 @@
       $('#btn-inventory')?.addEventListener('click', () => window.InventoryComponent?.show?.());
       $('#btn-relationships')?.addEventListener('click', () => window.RelationshipsComponent?.show?.());
       $('#btn-command-center')?.addEventListener('click', () => window.CommandCenterComponent?.show?.());
-      $('#btn-character-details')?.addEventListener('click', () => window.CharacterDetailsComponent?.show?.());
       $('#btn-guixu-system')?.addEventListener('click', () => window.GuixuSystemComponent?.show?.());
       $('#btn-show-extracted')?.addEventListener('click', () => window.ExtractedContentComponent?.show?.());
       $('#btn-save-load-manager')?.addEventListener('click', () => window.GuixuActionService?.showSaveLoadManager?.());
@@ -360,6 +359,8 @@
       if (window.GuixuAttributeService?.updateDisplay) {
         window.GuixuAttributeService.updateDisplay();
       }
+
+
       // 渲染天赋与灵根
       this.renderTalentsAndLinggen(data);
       this.loadEquipmentFromMVU(data);

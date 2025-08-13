@@ -68,6 +68,23 @@
         </div>
 
         <div class="panel-section">
+          <div class="section-title">修为详情</div>
+          <div class="attributes-list">
+            <div class="attribute-item">
+              <span class="attribute-name">修为进度</span>
+              <span id="cultivation-progress-text" class="attribute-value">0%</span>
+            </div>
+            <div class="details-progress-bar">
+              <div id="cultivation-progress-fill" class="details-progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="attribute-item" style="margin-top: 8px;">
+              <span class="attribute-name">当前瓶颈</span>
+              <span id="cultivation-bottleneck" class="attribute-value">无</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-section">
           <div class="section-title">天赋灵根</div>
           <div id="talent-linggen-list" class="attributes-list">
             <!-- 天赋和灵根动态填充 -->
@@ -99,7 +116,6 @@
         <button id="btn-inventory" class="interaction-btn">背包</button>
         <button id="btn-relationships" class="interaction-btn">人物关系</button>
         <button id="btn-command-center" class="interaction-btn">指令中心</button>
-        <button id="btn-character-details" class="interaction-btn">角色详情</button>
         <button id="btn-guixu-system" class="interaction-btn">归墟系统</button>
         <button id="btn-show-extracted" class="interaction-btn">查看提取内容</button>
         <button id="btn-save-load-manager" class="interaction-btn">存档/读档</button>
@@ -244,15 +260,6 @@
             <pre id="extracted-variable-changes" style="white-space: pre-wrap; word-wrap: break-word; color: #e0dcd1; font-size: 12px; padding: 10px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; min-height: 50px;">无内容</pre>
           </details>
         </div>
-      </div>
-    </div>
-    <div id="character-details-modal" class="modal-overlay">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 class="modal-title">角色详情</h2>
-          <button class="modal-close-btn">&times;</button>
-        </div>
-        <div class="modal-body"><!-- 动态填充 --></div>
       </div>
     </div>
     <div id="guixu-system-modal" class="modal-overlay">
@@ -450,12 +457,12 @@
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/statuses.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/inventory.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/relationships.js"></script>
-  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/character-details.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/command-center.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/extracted-content.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/guixu-system.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/journey.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/past-lives.js"></script>
+  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/cultivation-panel.js"></script>
 
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/main.js"></script>
 </body>
