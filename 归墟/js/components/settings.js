@@ -10,6 +10,9 @@
     bgMaskOpacity: 0.7,
     storyFontSize: 14,
     bgFitMode: 'cover',
+    uiResolutionPreset: 'keep',
+    uiCustomWidth: 900,
+    uiCustomHeight: 600,
   });
 
   function clamp(num, min, max) {
@@ -18,18 +21,22 @@
     return Math.min(max, Math.max(min, n));
   }
 
+  const BG_PREFIX = String(window.GuixuConstants?.BACKGROUND?.PREFIX || '归墟背景/');
+
   const SettingsComponent = {
     _bound: false,
-    _uploadedDataUrl: '',
-    _uploadedFileName: '',
-    _pendingDeleteBackground: false,
+    _bgEntriesCache: [],
+    _selectedComment: '',
 
     show() {
       const overlay = $('#settings-modal');
       if (!overlay) return;
       this.ensureBound();
       this.loadFromState();
-      overlay.style.display = 'flex';
+      // 打开时加载世界书背景列表
+      this.refreshBackgroundList().finally(() => {
+        overlay.style.display = 'flex';
+      });
     },
 
     hide() {
@@ -42,9 +49,12 @@
       this._bound = true;
 
       const overlay = $('#settings-modal');
-      const bgUrlInput = $('#pref-bg-url');
+      const bgSelect = $('#pref-bg-select');
       const bgUploadBtn = $('#pref-bg-upload');
+      const bgDeleteBtn = $('#pref-bg-delete');
       const bgClearBtn = $('#pref-bg-clear');
+      const previewEl = $('#pref-bg-preview');
+
       const maskRange = $('#pref-bg-mask');
       const maskVal = $('#pref-bg-mask-val');
       const fontRange = $('#pref-story-font-size');
@@ -54,20 +64,16 @@
       const btnSaveClose = $('#pref-save-close');
       const fitSelect = $('#pref-bg-fit-mode');
 
-      // 实时预览：输入时仅应用到DOM变量，不保存
-      bgUrlInput?.addEventListener('input', () => {
-        this.applyPreview(this.readValues());
-      });
+      // 新增：分辨率控件
+      const resPreset = $('#pref-ui-res-preset');
+      const resW = $('#pref-ui-res-width');
+      const resH = $('#pref-ui-res-height');
 
-      maskRange?.addEventListener('input', () => {
-        const v = clamp(maskRange.value, 0, 0.8);
-        maskVal.textContent = v.toFixed(2);
-        this.applyPreview(this.readValues());
-      });
-
-      fontRange?.addEventListener('input', () => {
-        const v = clamp(fontRange.value, 12, 20);
-        fontVal.textContent = `${Math.round(v)}px`;
+      // 选择变化 -> 预览
+      bgSelect?.addEventListener('change', async () => {
+        const comment = String(bgSelect.value || '');
+        this._selectedComment = comment;
+        await this.updatePreviewByComment(comment);
         this.applyPreview(this.readValues());
       });
 
@@ -76,44 +82,92 @@
         this.applyPreview(this.readValues());
       });
 
-      // 本地上传 -> 转 base64 存到 URL 输入框
-      bgUploadBtn?.addEventListener('click', () => {
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.style.display = 'none';
-        fileInput.addEventListener('change', () => {
-          const file = fileInput.files?.[0];
-          if (!file) return;
-          try { window.GuixuHelpers?.showTemporaryMessage?.('正在读取本地图片...'); } catch (_) {}
-          const reader = new FileReader();
-          reader.onload = () => {
-            this._uploadedDataUrl = String(reader.result || '');
-            this._uploadedFileName = file.name || '';
-            if (bgUrlInput) bgUrlInput.value = `localfile:${this._uploadedFileName}`;
-            this.applyPreview(this.readValues());
-            try { window.GuixuHelpers?.showTemporaryMessage?.('图片已载入（未保存）'); } catch (_) {}
-          };
-          reader.readAsDataURL(file);
-        });
-        document.body.appendChild(fileInput);
-        fileInput.click();
-        // 清理
-        setTimeout(() => fileInput.remove(), 1000);
+      // 遮罩/字号实时预览
+      maskRange?.addEventListener('input', () => {
+        const v = clamp(maskRange.value, 0, 0.8);
+        if (maskVal) maskVal.textContent = v.toFixed(2);
+        this.applyPreview(this.readValues());
+      });
+      fontRange?.addEventListener('input', () => {
+        const v = clamp(fontRange.value, 12, 20);
+        if (fontVal) fontVal.textContent = `${Math.round(v)}px`;
+        this.applyPreview(this.readValues());
       });
 
-      // 清除背景
-      bgClearBtn?.addEventListener('click', () => {
-        if (bgUrlInput) bgUrlInput.value = '';
-        this._uploadedDataUrl = '';
-        this._uploadedFileName = '';
-        this._pendingDeleteBackground = true;
+      // 分辨率预设切换
+      const toggleCustomEnabled = () => {
+        const enable = String(resPreset?.value || 'keep') === 'custom';
+        if (resW) resW.disabled = !enable;
+        if (resH) resH.disabled = !enable;
+      };
+      resPreset?.addEventListener('change', () => {
+        const preset = String(resPreset.value || 'keep');
+        // 预设时同步显示数值（仅展示，不会强制保存）
+        if (preset !== 'custom' && preset !== 'keep') {
+          const m = preset.match(/^(\d+)x(\d+)$/);
+          if (m) {
+            if (resW) resW.value = m[1];
+            if (resH) resH.value = m[2];
+          }
+        }
+        toggleCustomEnabled();
+        this.applyPreview(this.readValues());
+      });
+      // 自定义宽高变化时应用预览（仅当处于自定义模式）
+      const onCustomSizeInput = () => {
+        if (String(resPreset?.value || 'keep') === 'custom') {
+          this.applyPreview(this.readValues());
+        }
+      };
+      resW?.addEventListener('input', onCustomSizeInput);
+      resH?.addEventListener('input', onCustomSizeInput);
+
+      // 本地上传 -> 压缩 -> 新建世界书条目（不覆盖）
+      bgUploadBtn?.addEventListener('click', () => this.uploadBackground());
+
+      // 删除当前选择的背景（从世界书中删除该条目）
+      bgDeleteBtn?.addEventListener('click', async () => {
+        const comment = String(bgSelect?.value || '');
+        if (!comment) {
+          try { window.GuixuHelpers?.showTemporaryMessage?.('请先从下拉框选择要删除的背景'); } catch(_) {}
+          return;
+        }
+        const confirmDelete = (onOk) => {
+          if (typeof window.GuixuMain?.showCustomConfirm === 'function') {
+            window.GuixuMain.showCustomConfirm(`确定要删除背景「${comment}」吗？此操作不可撤销。`, onOk, () => {});
+          } else {
+            if (confirm(`确定要删除背景「${comment}」吗？此操作不可撤销。`)) onOk();
+          }
+        };
+        confirmDelete(async () => {
+          try {
+            await this.deleteBackgroundEntry(comment);
+            try { window.GuixuHelpers?.showTemporaryMessage?.('背景已删除'); } catch(_) {}
+            // 刷新列表并清空选择
+            await this.refreshBackgroundList();
+            if (bgSelect) bgSelect.value = '';
+            this._selectedComment = '';
+            await this.updatePreviewByComment('');
+            this.applyPreview(this.readValues());
+          } catch (e) {
+            console.warn('[归墟][设置中心] 删除背景失败：', e);
+            try { window.GuixuHelpers?.showTemporaryMessage?.('删除失败'); } catch(_) {}
+          }
+        });
+      });
+
+      // 清除背景（不删除世界书条目，仅清空当前选择）
+      bgClearBtn?.addEventListener('click', async () => {
+        if (bgSelect) bgSelect.value = '';
+        this._selectedComment = '';
+        await this.updatePreviewByComment('');
         this.applyPreview(this.readValues());
       });
 
       // 恢复默认
-      btnReset?.addEventListener('click', () => {
+      btnReset?.addEventListener('click', async () => {
         this.syncUI(DEFAULTS);
+        await this.updatePreviewByComment('');
         this.applyPreview(DEFAULTS);
       });
 
@@ -124,26 +178,9 @@
         try { window.GuixuHelpers?.showTemporaryMessage?.('已应用设置（未保存）'); } catch (_) {}
       });
 
-      // 保存并关闭（写入状态 + 应用）
+      // 保存并关闭（写入状态 + 应用 + 漫游持久化）
       btnSaveClose?.addEventListener('click', async () => {
-        let prefs = this.readValues();
-
-        try {
-          if (this._pendingDeleteBackground || !prefs.backgroundUrl) {
-            await this.deleteBackgroundFromLorebookIfExists();
-            prefs.backgroundUrl = '';
-            this._uploadedDataUrl = '';
-            this._uploadedFileName = '';
-            this._pendingDeleteBackground = false;
-            try { window.GuixuHelpers?.showTemporaryMessage?.('已清除背景并删除世界书主题'); } catch (_) {}
-          } else {
-            // 若为本地上传的 dataURL：压缩为更小的 WebP/JPEG，再写世界书，并改为 lorebook:// 引用
-            prefs = await this.saveBackgroundToLorebookIfNeeded(prefs);
-          }
-        } catch (e) {
-          console.warn('[归墟][设置中心] 背景保存/清除处理失败:', e);
-        }
-
+        const prefs = this.readValues();
         try {
           window.GuixuState?.update?.('userPreferences', prefs);
         } catch (e) {
@@ -163,55 +200,99 @@
       // 关闭按钮由全局委托处理（main.js 中的 .modal-close-btn 委托），此处无需重复绑定
       // 点击遮罩空白关闭同样由全局委托处理
       overlay?.addEventListener('keydown', (e) => {
+        const btnSaveCloseNow = $('#pref-save-close');
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-          btnSaveClose?.click();
+          btnSaveCloseNow?.click();
         }
       });
+
+      // 初始化预览容器样式兜底（若CSS未定义）
+      if (previewEl && !previewEl.style.minHeight) {
+        previewEl.style.minHeight = '120px';
+        previewEl.style.background = 'rgba(0,0,0,0.3)';
+        previewEl.style.border = '1px solid #8b7355';
+        previewEl.style.borderRadius = '4px';
+        previewEl.style.backgroundSize = 'cover';
+        previewEl.style.backgroundPosition = 'center';
+        previewEl.style.backgroundRepeat = 'no-repeat';
+      }
     },
 
     loadFromState() {
       const state = window.GuixuState?.getState?.() || {};
       const prefs = Object.assign({}, DEFAULTS, state.userPreferences || {});
       this.syncUI(prefs);
-      // 打开时不强制应用，因为主入口会在 init 时已应用一次；如需预览，用户可调整滑块/输入或点击“应用”
     },
 
     syncUI(prefs) {
-      const bgUrlInput = $('#pref-bg-url');
       const maskRange = $('#pref-bg-mask');
       const maskVal = $('#pref-bg-mask-val');
       const fontRange = $('#pref-story-font-size');
       const fontVal = $('#pref-story-font-size-val');
-
-      if (bgUrlInput) {
-        const urlVal = String(prefs.backgroundUrl || '');
-        bgUrlInput.value = urlVal.startsWith('data:') ? 'localfile:(已保存)' : urlVal;
-      }
       const fitSelect = $('#pref-bg-fit-mode');
-      if (fitSelect) {
-        fitSelect.value = String(prefs.bgFitMode || 'cover');
+      const bgSelect = $('#pref-bg-select');
+      const resPreset = $('#pref-ui-res-preset');
+      const resW = $('#pref-ui-res-width');
+      const resH = $('#pref-ui-res-height');
+
+      // 当前选择从 prefs 解析（lorebook://COMMENT）
+      const urlVal = String(prefs.backgroundUrl || '');
+      let selectedComment = '';
+      if (urlVal.startsWith('lorebook://')) {
+        selectedComment = urlVal.slice('lorebook://'.length);
       }
+
+      if (fitSelect) fitSelect.value = String(prefs.bgFitMode || 'cover');
       if (maskRange) maskRange.value = String(clamp(prefs.bgMaskOpacity, 0, 0.8));
       if (maskVal) maskVal.textContent = String(clamp(prefs.bgMaskOpacity, 0, 0.8).toFixed(2));
       if (fontRange) fontRange.value = String(clamp(prefs.storyFontSize, 12, 20));
       if (fontVal) fontVal.textContent = `${Math.round(clamp(prefs.storyFontSize, 12, 20))}px`;
+
+      this._selectedComment = selectedComment;
+
+      // 在刷新列表后设值更稳妥，这里先预置选中值
+      if (bgSelect) {
+        bgSelect.value = selectedComment || '';
+      }
+
+      // 分辨率设置回显
+      const preset = String(prefs.uiResolutionPreset || 'keep');
+      if (resPreset) resPreset.value = preset;
+      let showW = Number(prefs.uiCustomWidth || 900);
+      let showH = Number(prefs.uiCustomHeight || 600);
+      const m = preset.match?.(/^(\d+)x(\d+)$/);
+      if (m) {
+        showW = parseInt(m[1], 10);
+        showH = parseInt(m[2], 10);
+      } else if (preset === 'keep') {
+        showW = 900; showH = 600;
+      }
+      if (resW) resW.value = String(showW);
+      if (resH) resH.value = String(showH);
+      // 启用/禁用自定义输入
+      const enable = preset === 'custom';
+      if (resW) resW.disabled = !enable;
+      if (resH) resH.disabled = !enable;
     },
 
     readValues() {
-      const bgUrlInput = $('#pref-bg-url');
       const maskRange = $('#pref-bg-mask');
       const fontRange = $('#pref-story-font-size');
-      const inputUrl = (bgUrlInput?.value || '').trim();
-      let backgroundUrl = inputUrl;
-      if (this._uploadedDataUrl) {
-        if (!inputUrl || inputUrl.startsWith('localfile:')) {
-          backgroundUrl = this._uploadedDataUrl;
-        }
-      }
       const bgMaskOpacity = clamp(maskRange?.value || DEFAULTS.bgMaskOpacity, 0, 0.8);
       const storyFontSize = Math.round(clamp(fontRange?.value || DEFAULTS.storyFontSize, 12, 20));
       const bgFitMode = String(($('#pref-bg-fit-mode')?.value) || DEFAULTS.bgFitMode);
-      return { backgroundUrl, bgMaskOpacity, storyFontSize, bgFitMode };
+
+      const selectedComment = String($('#pref-bg-select')?.value || this._selectedComment || '');
+      const backgroundUrl = selectedComment ? `lorebook://${selectedComment}` : '';
+
+      // 分辨率
+      const uiResolutionPreset = String($('#pref-ui-res-preset')?.value || DEFAULTS.uiResolutionPreset);
+      let uiCustomWidth = Number($('#pref-ui-res-width')?.value || DEFAULTS.uiCustomWidth);
+      let uiCustomHeight = Number($('#pref-ui-res-height')?.value || DEFAULTS.uiCustomHeight);
+      uiCustomWidth = Math.max(300, Math.min(7680, isFinite(uiCustomWidth) ? uiCustomWidth : DEFAULTS.uiCustomWidth));
+      uiCustomHeight = Math.max(200, Math.min(4320, isFinite(uiCustomHeight) ? uiCustomHeight : DEFAULTS.uiCustomHeight));
+
+      return { backgroundUrl, bgMaskOpacity, storyFontSize, bgFitMode, uiResolutionPreset, uiCustomWidth, uiCustomHeight };
     },
 
     applyPreview(prefs) {
@@ -234,62 +315,145 @@
       }
     },
 
-    // 若背景为 dataURL，则压缩为更小的 WebP/JPEG 后保存到世界书条目，改写为 lorebook:// 引用
-    async saveBackgroundToLorebookIfNeeded(prefs) {
-      try {
-        if (!prefs || !prefs.backgroundUrl || typeof prefs.backgroundUrl !== 'string') return prefs;
-        const bg = prefs.backgroundUrl.trim();
-        if (!bg.startsWith('data:')) return prefs;
+    // 加载以“归墟背景/”为前缀的所有世界书条目
+    async loadBackgroundEntries() {
+      const bookName = window.GuixuConstants?.LOREBOOK?.NAME;
+      if (!bookName || !window.GuixuAPI) return [];
+      const entries = await window.GuixuAPI.getLorebookEntries(bookName);
+      const list = Array.isArray(entries) ? entries.filter(e => (e.comment || '').startsWith(BG_PREFIX)) : [];
+      this._bgEntriesCache = list;
+      return list;
+    },
 
-        try { window.GuixuHelpers?.showTemporaryMessage?.('正在上传背景到世界书...'); } catch (_) {}
-        // 压缩到合理尺寸与质量，显著降低体积
-        const compressed = await this.compressDataUrl(bg, { maxWidth: 1920, maxHeight: 1080, quality: 0.82, mime: 'image/webp' });
+    // 刷新下拉列表并同步当前选中项
+    async refreshBackgroundList() {
+      const entries = await this.loadBackgroundEntries();
+      this.populateSelectOptions(entries, this._selectedComment);
+      await this.updatePreviewByComment(this._selectedComment);
+    },
+
+    // 将 entries 渲染到选择框
+    populateSelectOptions(entries, selectedComment = '') {
+      const sel = $('#pref-bg-select');
+      if (!sel) return;
+      sel.innerHTML = '';
+      const optNone = document.createElement('option');
+      optNone.value = '';
+      optNone.textContent = '（未选择）';
+      sel.appendChild(optNone);
+
+      entries.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.comment || '';
+        // 标签使用去前缀后的名字，找不到则用完整 comment
+        let label = opt.value.startsWith(BG_PREFIX) ? opt.value.slice(BG_PREFIX.length) : opt.value;
+        if (!label) label = opt.value;
+        opt.textContent = label;
+        sel.appendChild(opt);
+      });
+
+      sel.value = selectedComment || '';
+    },
+
+    // 将选中的 comment 的缩略图设置到预览框
+    async updatePreviewByComment(comment) {
+      const previewEl = $('#pref-bg-preview');
+      if (!previewEl) return;
+      if (!comment) {
+        previewEl.style.backgroundImage = '';
+        return;
+      }
+      const target = this._bgEntriesCache.find(e => (e.comment || '') === comment);
+      const dataUrl = target?.content || '';
+      previewEl.style.backgroundImage = dataUrl ? `url("${dataUrl}")` : '';
+    },
+
+    // 上传并创建新世界书条目（不会覆盖已有）
+    async uploadBackground() {
+      try {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+
+        const once = () => new Promise((resolve) => {
+          fileInput.addEventListener('change', () => resolve(), { once: true });
+        });
+
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        await once();
+
+        const file = fileInput.files?.[0];
+        setTimeout(() => fileInput.remove(), 1000);
+        if (!file) return;
+
+        try { window.GuixuHelpers?.showTemporaryMessage?.('正在读取并压缩图片...'); } catch(_) {}
+
+        const reader = new FileReader();
+        const dataUrl = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const compressed = await this.compressDataUrl(dataUrl, { maxWidth: 1920, maxHeight: 1080, quality: 0.82, mime: 'image/webp' });
 
         const bookName = window.GuixuConstants?.LOREBOOK?.NAME;
-        if (!bookName || !window.GuixuAPI) return prefs;
+        if (!bookName || !window.GuixuAPI) throw new Error('世界书API不可用');
 
-        const ENTRY = '归墟主题-背景图';
-        // 查找是否已有条目
-        const entries = await window.GuixuAPI.getLorebookEntries(bookName);
-        const existing = entries.find(e => (e.comment || '') === ENTRY);
+        // 生成唯一 comment：归墟背景/<文件名或时间戳>(-n)
+        const baseName = (file.name || `背景_${Date.now()}`).replace(/\.[^.]+$/, '');
+        const entries = await this.loadBackgroundEntries();
+        const existingComments = new Set(entries.map(e => e.comment || ''));
+        const uniqueComment = this.makeUniqueComment(baseName, existingComments);
 
-        if (existing) {
-          await window.GuixuAPI.setLorebookEntries(bookName, [{ uid: existing.uid, content: compressed }]);
-        } else {
-          await window.GuixuAPI.createLorebookEntries(bookName, [{
-            comment: ENTRY,
-            content: compressed,
-            keys: [ENTRY],
-            enabled: false,
-            position: 'before_character_definition',
-            order: 5
-          }]);
-        }
+        await window.GuixuAPI.createLorebookEntries(bookName, [{
+          comment: uniqueComment,
+          content: compressed,
+          keys: [uniqueComment],
+          enabled: false,
+          position: 'before_character_definition',
+          order: 6
+        }]);
 
-        // 改写为 lorebook:// 引用，后续渲染时通过世界书读取
-        const newPrefs = Object.assign({}, prefs, { backgroundUrl: `lorebook://${ENTRY}` });
-        try { window.GuixuHelpers?.showTemporaryMessage?.('背景上传成功'); } catch (_) {}
-        return newPrefs;
+        try { window.GuixuHelpers?.showTemporaryMessage?.('背景上传成功'); } catch(_) {}
+
+        // 刷新列表并选中新条目
+        await this.refreshBackgroundList();
+        const sel = $('#pref-bg-select');
+        if (sel) sel.value = uniqueComment;
+        this._selectedComment = uniqueComment;
+        await this.updatePreviewByComment(uniqueComment);
+        this.applyPreview(this.readValues());
       } catch (e) {
-        console.warn('[归墟][设置中心] saveBackgroundToLorebookIfNeeded 出错:', e);
-        try { window.GuixuHelpers?.showTemporaryMessage?.('背景上传失败'); } catch (_) {}
-        return prefs;
+        console.warn('[归墟][设置中心] 上传背景失败：', e);
+        try { window.GuixuHelpers?.showTemporaryMessage?.('上传失败'); } catch(_) {}
       }
     },
 
-    // 删除世界书中的背景条目（若存在）
-    async deleteBackgroundFromLorebookIfExists() {
-      try {
-        const bookName = window.GuixuConstants?.LOREBOOK?.NAME;
-        if (!bookName || !window.GuixuAPI) return;
-        const ENTRY = '归墟主题-背景图';
-        const entries = await window.GuixuAPI.getLorebookEntries(bookName);
-        const target = entries.find(e => (e.comment || '') === ENTRY);
-        if (target) {
-          await window.GuixuAPI.deleteLorebookEntries(bookName, [target.uid]);
-        }
-      } catch (e) {
-        console.warn('[归墟][设置中心] deleteBackgroundFromLorebookIfExists 出错:', e);
+    // 删除指定 comment 的条目
+    async deleteBackgroundEntry(comment) {
+      const bookName = window.GuixuConstants?.LOREBOOK?.NAME;
+      if (!bookName || !window.GuixuAPI || !comment) return;
+
+      // 找 uid
+      const entries = await window.GuixuAPI.getLorebookEntries(bookName);
+      const target = entries.find(e => (e.comment || '') === comment);
+      if (!target) throw new Error('未找到对应条目');
+      await window.GuixuAPI.deleteLorebookEntries(bookName, [target.uid]);
+    },
+
+    // 基于现有 comment 集合生成唯一 comment
+    makeUniqueComment(baseName, existingComments) {
+      const sanitize = (s) => String(s || '').trim().replace(/[\/\\?%*:|"<>]/g, '_');
+      const base = `${BG_PREFIX}${sanitize(baseName)}`;
+      if (!existingComments.has(base)) return base;
+      let i = 2;
+      while (true) {
+        const candidate = `${base}-${i}`;
+        if (!existingComments.has(candidate)) return candidate;
+        i += 1;
       }
     },
 

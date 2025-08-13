@@ -77,8 +77,11 @@
 
       // 全屏切换
       $('#fullscreen-btn')?.addEventListener('click', () => this.toggleFullscreen());
-      // 全屏状态变化时更新按钮
-      document.addEventListener('fullscreenchange', () => this._updateFullscreenButtonState());
+      // 全屏状态变化时更新按钮并重新应用视口缩放（退出/进入全屏时需要重算）
+      document.addEventListener('fullscreenchange', () => { 
+        this._updateFullscreenButtonState(); 
+        this.applyUserPreferences(); 
+      });
       // 初始化一次按钮状态
       this._updateFullscreenButtonState();
 
@@ -803,7 +806,7 @@
         const container = document.querySelector('.guixu-root-container');
         if (!container) return;
         const state = window.GuixuState?.getState?.();
-        const defaults = { backgroundUrl: '', bgMaskOpacity: 0.7, storyFontSize: 14 };
+        const defaults = { backgroundUrl: '', bgMaskOpacity: 0.7, storyFontSize: 14, bgFitMode: 'cover', uiResolutionPreset: 'keep', uiCustomWidth: 900, uiCustomHeight: 600 };
         const prefs = Object.assign({}, defaults, (prefsOverride || state?.userPreferences || {}));
 
         // 遮罩透明度（0~0.8）
@@ -854,8 +857,12 @@
             }
           })();
         } else {
-          container.style.backgroundImage = `url("${bg}")`;
+          // 已移除外部 URL/dataURL 背景支持，仅允许 lorebook:// 来源
+          container.style.backgroundImage = '';
         }
+
+        // 应用非全屏分辨率与等比缩放
+        this._applyViewportSizing(prefs);
       } catch (e) {
         console.warn('[归墟] 应用用户主题偏好失败:', e);
       }
@@ -871,6 +878,62 @@
       } catch (e) {
         console.warn('[归墟] _resolveLorebookDataUrl 出错:', e);
         return '';
+      }
+    },
+
+    // 新增：应用非全屏分辨率与等比例缩放
+    _applyViewportSizing(prefs) {
+      try {
+        const baseW = 900;
+        const baseH = 600;
+        const viewport = document.getElementById('guixu-viewport');
+        const root = document.querySelector('.guixu-root-container');
+        if (!viewport || !root) return;
+
+        // 全屏时忽略自定义分辨率与缩放
+        if (document.fullscreenElement) {
+          root.style.transformOrigin = 'top left';
+          root.style.transform = 'scale(1)';
+          root.style.left = '0px';
+          root.style.top = '0px';
+          return;
+        }
+
+        const preset = String(prefs.uiResolutionPreset || 'keep');
+        let targetW = baseW;
+        let targetH = baseH;
+        if (preset === 'custom') {
+          const w = Number(prefs.uiCustomWidth || baseW);
+          const h = Number(prefs.uiCustomHeight || baseH);
+          targetW = Math.max(300, Math.min(7680, isFinite(w) ? w : baseW));
+          targetH = Math.max(200, Math.min(4320, isFinite(h) ? h : baseH));
+        } else if (preset === 'keep') {
+          targetW = baseW;
+          targetH = baseH;
+        } else {
+          const m = preset.match(/^(\d+)x(\d+)$/);
+          if (m) {
+            targetW = parseInt(m[1], 10);
+            targetH = parseInt(m[2], 10);
+          }
+        }
+
+        viewport.style.setProperty('--viewport-w', `${targetW}px`);
+        viewport.style.setProperty('--viewport-h', `${targetH}px`);
+
+        const scaleW = targetW / baseW;
+        const scaleH = targetH / baseH;
+        const s = Math.min(scaleW, scaleH);
+
+        root.style.transformOrigin = 'top left';
+        root.style.transform = `scale(${s})`;
+
+        const left = Math.max(0, (targetW - baseW * s) / 2);
+        const top = Math.max(0, (targetH - baseH * s) / 2);
+        root.style.left = `${left}px`;
+        root.style.top = `${top}px`;
+      } catch (e) {
+        console.warn('[归墟] _applyViewportSizing 出错:', e);
       }
     },
 

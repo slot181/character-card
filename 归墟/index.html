@@ -11,7 +11,8 @@
 
 <body>
   <!-- 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享 -->
-  <div class="guixu-root-container">
+  <div id="guixu-viewport" class="guixu-viewport">
+    <div class="guixu-root-container">
     <!-- 视图/设置按钮 -->
     <button id="btn-settings" class="settings-btn" title="设置">⚙️</button>
     <button id="view-toggle-btn" class="view-toggle-btn" title="切换视图">📱</button>
@@ -335,10 +336,16 @@
             <div class="section-title">背景图</div>
             <div class="attributes-list" style="padding: 10px;">
               <div class="attribute-item" style="gap:8px; align-items:center;">
-                <span class="attribute-name" style="min-width:70px;">URL</span>
-                <input id="pref-bg-url" type="text" placeholder="https://..." style="flex:1; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px;">
+                <span class="attribute-name" style="min-width:70px;">背景库</span>
+                <select id="pref-bg-select" style="flex:1; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px;">
+                  <option value="">（未选择）</option>
+                </select>
                 <button id="pref-bg-upload" class="interaction-btn" style="padding: 4px 8px; font-size: 12px;">本地上传</button>
+                <button id="pref-bg-delete" class="interaction-btn danger-btn" style="padding: 4px 8px; font-size: 12px;">删除背景</button>
                 <button id="pref-bg-clear" class="interaction-btn" style="padding: 4px 8px; font-size: 12px;">清除背景</button>
+              </div>
+              <div class="attribute-item" style="margin-top:8px;">
+                <div id="pref-bg-preview" class="bg-preview" style="width:100%;"></div>
               </div>
             </div>
           </div>
@@ -374,6 +381,32 @@
               </div>
             </div>
           </div>
+
+          <div class="panel-section">
+            <div class="section-title">分辨率（非全屏）</div>
+            <div class="attributes-list" style="padding: 10px; gap:8px;">
+              <div class="attribute-item" style="gap:8px; align-items:center;">
+                <span class="attribute-name" style="min-width:90px;">预设</span>
+                <select id="pref-ui-res-preset" style="flex:1; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px;">
+                  <option value="keep">跟随默认(900x600)</option>
+                  <option value="1024x576">1024 x 576</option>
+                  <option value="1280x720">1280 x 720</option>
+                  <option value="1366x768">1366 x 768</option>
+                  <option value="1600x900">1600 x 900</option>
+                  <option value="1920x1080">1920 x 1080</option>
+                  <option value="2560x1440">2560 x 1440</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </div>
+              <div class="attribute-item" style="gap:8px; align-items:center;">
+                <span class="attribute-name" style="min-width:90px;">自定义</span>
+                <input id="pref-ui-res-width" type="number" min="300" max="7680" placeholder="宽" style="width:100px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px;">
+                <span class="attribute-name">x</span>
+                <input id="pref-ui-res-height" type="number" min="200" max="4320" placeholder="高" style="width:100px; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px;">
+                <span class="attribute-name" style="font-size: 11px; color: #8b7355;">（选择“自定义”后可用）</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="command-center-footer">
           <button id="pref-reset-defaults" class="interaction-btn">恢复默认</button>
@@ -395,6 +428,7 @@
       </div>
     </div>
     <input type="file" id="import-file-input" style="display: none;" accept=".json" />
+  </div>
   </div>
 
   <!-- 加载本地模块化脚本（按依赖顺序） -->
