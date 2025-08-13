@@ -153,9 +153,9 @@
                 }
               }
 
-              // 所有物品都可丢弃或彻底删除
+              // 所有物品都可丢弃或删除
               actionButton += `<button class="item-discard-btn" style="margin-left: 5px;">丢弃</button>`;
-              actionButton += `<button class="interaction-btn item-delete-btn danger-btn" style="margin-left: 5px;">彻底删除</button>`;
+              actionButton += `<button class="interaction-btn item-delete-btn danger-btn" style="margin-left: 5px;">删除</button>`;
 
               // 细节说明使用通用渲染工具，避免重复实现
               const itemDetailsHtml = (window.GuixuRenderers && typeof window.GuixuRenderers.renderItemDetailsForInventory === 'function')
@@ -421,7 +421,7 @@
       await this.show();
     },
 
-    // 逻辑：彻底删除（直接修改数据）
+    // 逻辑：删除（直接修改数据）
     async deleteItem(item, category) {
       const h = window.GuixuHelpers;
       const itemName = h.SafeGetValue(item, 'name', '未知物品');
@@ -429,7 +429,7 @@
 
       const confirmed = await new Promise(resolve => 
         window.GuixuMain.showCustomConfirm(
-          `确定要彻底删除【${itemName}】吗？此操作不可逆，将直接从角色数据中移除，且不会通知AI。`,
+          `确定要删除【${itemName}】吗？此操作不可逆，将直接从角色数据中移除，且不会通知AI。`,
           () => resolve(true),
           () => resolve(false)
         )
@@ -517,7 +517,7 @@
           console.warn('[归墟] 删除物品后清理装备槽位失败:', clearErr);
         }
 
-        h.showTemporaryMessage(`【${itemName}】已彻底删除。`);
+        h.showTemporaryMessage(`【${itemName}】已删除。`);
 
         // 4. 刷新UI
         await this.show();
@@ -527,7 +527,7 @@
         }
 
       } catch (error) {
-        console.error('彻底删除物品时出错:', error);
+        console.error('删除物品时出错:', error);
         h.showTemporaryMessage(`删除失败: ${error.message}`);
       }
     },

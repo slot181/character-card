@@ -73,7 +73,7 @@
             <div class="relationship-card" data-relationship-details='${relJson}'>
               <div class="relationship-header">
                   <p class="relationship-name" style="${tierStyle}">${name}</p>
-                  <button class="interaction-btn danger-btn btn-delete-relationship" style="padding: 4px 8px; font-size: 12px;">彻底删除</button>
+                  <button class="interaction-btn danger-btn btn-delete-relationship" style="padding: 4px 8px; font-size: 12px;">删除</button>
               </div>
               <div class="relationship-body">
                 <p>${description}</p>
@@ -132,7 +132,7 @@
 
         const confirmed = await new Promise(resolve => 
             window.GuixuMain.showCustomConfirm(
-                `确定要彻底删除与【${relName}】的关系吗？此操作不可逆，将直接从角色数据中移除。`,
+                `确定要删除与【${relName}】的关系吗？此操作不可逆，将直接从角色数据中移除。`,
                 () => resolve(true),
                 () => resolve(false)
             )
@@ -173,7 +173,7 @@
                 data: currentMvuState,
             }], { refresh: 'none' });
 
-            h.showTemporaryMessage(`与【${relName}】的关系已彻底删除。`);
+            h.showTemporaryMessage(`与【${relName}】的关系已删除。`);
             await this.show();
             // 同步主界面（如有装备信息联动）
             if (window.GuixuMain?.updateDynamicData) {
@@ -181,7 +181,7 @@
             }
 
         } catch (error) {
-            console.error('彻底删除人物关系时出错:', error);
+            console.error('删除人物关系时出错:', error);
             h.showTemporaryMessage(`删除失败: ${error.message}`);
         }
     },

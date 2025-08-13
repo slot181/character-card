@@ -46,7 +46,8 @@
     userPreferences: {
       backgroundUrl: '',
       bgMaskOpacity: 0.7,
-      storyFontSize: 14
+      storyFontSize: 14,
+      bgFitMode: 'cover'
     },
 
     // --- 计时器ID ---
@@ -67,7 +68,7 @@
       this.loadStateFromStorage('guixu_auto_toggle_enabled', 'isAutoToggleLorebookEnabled', false);
       this.loadStateFromStorage('guixu_auto_save_enabled', 'isAutoSaveEnabled', false);
       this.loadStateFromStorage('guixu_auto_trim_enabled', 'isAutoTrimEnabled', false);
-      this.loadStateFromStorage('guixu_user_preferences', 'userPreferences', { backgroundUrl: '', bgMaskOpacity: 0.7, storyFontSize: 14 });
+      this.loadStateFromStorage('guixu_user_preferences', 'userPreferences', { backgroundUrl: '', bgMaskOpacity: 0.7, storyFontSize: 14, bgFitMode: 'cover' });
     },
 
     // --- 状态存取辅助函数 ---

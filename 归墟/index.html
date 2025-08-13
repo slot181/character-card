@@ -15,6 +15,7 @@
     <!-- 视图/设置按钮 -->
     <button id="btn-settings" class="settings-btn" title="设置">⚙️</button>
     <button id="view-toggle-btn" class="view-toggle-btn" title="切换视图">📱</button>
+    <button id="fullscreen-btn" class="fullscreen-btn" title="进入全屏">⛶</button>
 
     <div class="game-container">
       <!-- 顶部状态栏 -->
@@ -139,6 +140,7 @@
             <span>当前无状态效果</span>
           </div>
         </div>
+        <button id="btn-view-statuses" class="interaction-btn" style="padding: 5px 10px; white-space: nowrap;">查看状态</button>
         <div class="quick-send-container">
           <button id="btn-quick-commands" class="interaction-btn" style="padding: 5px 12px">当前指令</button>
           <textarea id="quick-send-input" class="quick-send-input" placeholder="请在此输入回复..."></textarea>
@@ -350,6 +352,20 @@
             </div>
           </div>
           <div class="panel-section">
+            <div class="section-title">背景显示方式</div>
+            <div class="attributes-list" style="padding: 10px;">
+              <div class="attribute-item" style="gap:10px; align-items:center;">
+                <select id="pref-bg-fit-mode" style="flex:1; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px;">
+                  <option value="cover">拉伸填充（cover）</option>
+                  <option value="contain">完整适配（contain）</option>
+                  <option value="repeat">平铺（repeat）</option>
+                  <option value="stretch">拉伸至满屏（100% x 100%）</option>
+                  <option value="center">原尺寸居中</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="panel-section">
             <div class="section-title">故事文本字号</div>
             <div class="attributes-list" style="padding: 10px;">
               <div class="attribute-item" style="gap:10px; align-items:center;">
@@ -366,6 +382,16 @@
             <button id="pref-save-close" class="interaction-btn primary-btn" style="margin-left: 10px;">保存并关闭</button>
           </div>
         </div>
+      </div>
+    </div>
+    <div id="statuses-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">状态一览</h2>
+          <input id="statuses-search-input" type="text" placeholder="搜索状态..." style="margin-left:auto; background: rgba(0,0,0,0.5); border: 1px solid #8b7355; color: #e0dcd1; border-radius: 4px; padding: 6px; font-size: 12px; width: 220px;">
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body"><!-- 动态填充 --></div>
       </div>
     </div>
     <input type="file" id="import-file-input" style="display: none;" accept=".json" />
@@ -387,6 +413,7 @@
   <!-- 新增：组件脚本（在 UI 协调器之前加载） -->
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/modal.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/settings.js"></script>
+  <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/statuses.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/inventory.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/relationships.js"></script>
   <script src="https://sparkling-hummingbird-1a2fc4.netlify.app/归墟/js/components/character-details.js"></script>

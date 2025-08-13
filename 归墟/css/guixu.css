@@ -5,10 +5,13 @@
 .guixu-root-container {
   --guixu-story-font-size: 14px;
   --guixu-bg-mask: 0.7;
+  --guixu-bg-size: cover;
+  --guixu-bg-repeat: no-repeat;
+  --guixu-bg-position: center;
   font-family: 'ZCOOL+KuaiLe', 'Ma+Shan+Zheng', serif;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-size: var(--guixu-bg-size, cover);
+  background-position: var(--guixu-bg-position, center);
+  background-repeat: var(--guixu-bg-repeat, no-repeat);
   color: #c9aa71;
   border: 1px solid #c9aa71;
   border-radius: 8px;
@@ -1051,6 +1054,29 @@
   background-color: rgba(45, 27, 61, 0.9);
 }
 
+/* 全屏按钮（右上角，靠左一点） */
+.fullscreen-btn {
+  position: absolute;
+  top: 15px;
+  right: 60px; /* 位于视图切换按钮左侧 */
+  width: 35px;
+  height: 35px;
+  background: rgba(15, 15, 35, 0.8);
+  border: 1px solid #c9aa71;
+  color: #c9aa71;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 100;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s;
+}
+.fullscreen-btn:hover {
+  background-color: rgba(45, 27, 61, 0.9);
+}
+
 /* 设置按钮（左上角，与视图按钮风格统一） */
 .settings-btn {
   position: absolute;
@@ -1421,4 +1447,85 @@
 }
 .btn-delete-relationship:hover {
   background: #a52a2a !important;
+}
+
+/* --- 全屏适配（进入全屏时铺满视口，消除底部空白） --- */
+.guixu-root-container:fullscreen,
+.guixu-root-container:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+}
+.guixu-root-container:fullscreen .game-container,
+.guixu-root-container:-webkit-full-screen .game-container {
+  height: 100%;
+}
+
+/* --- 状态类型配色（底部快捷状态与模态统一） --- */
+.status-effect--BUFF {
+  background: rgba(60, 179, 113, 0.2);
+  border-color: rgba(60, 179, 113, 0.5);
+}
+.status-effect--BUFF .effect-icon {
+  background: #3cb371;
+}
+
+.status-effect--DEBUFF {
+  background: rgba(255, 107, 107, 0.2);
+  border-color: rgba(255, 107, 107, 0.5);
+}
+.status-effect--DEBUFF .effect-icon {
+  background: #ff6b6b;
+}
+
+.status-effect--NEUTRAL {
+  background: rgba(160, 156, 145, 0.2);
+  border-color: rgba(160, 156, 145, 0.4);
+}
+.status-effect--NEUTRAL .effect-icon {
+  background: #a09c91;
+}
+
+.status-effect--AURA {
+  background: rgba(147, 112, 219, 0.2);
+  border-color: rgba(147, 112, 219, 0.5);
+}
+.status-effect--AURA .effect-icon {
+  background: #9370db;
+}
+
+.status-effect--TERRAIN {
+  background: rgba(218, 165, 32, 0.2);
+  border-color: rgba(218, 165, 32, 0.5);
+}
+.status-effect--TERRAIN .effect-icon {
+  background: #daa520;
+}
+
+/* 模态内状态卡片边框强调 */
+.status-card[data-status-type="BUFF"] { border-color: rgba(60,179,113,0.6) !important; }
+.status-card[data-status-type="DEBUFF"] { border-color: rgba(255,107,107,0.6) !important; }
+.status-card[data-status-type="NEUTRAL"] { border-color: rgba(160,156,145,0.6) !important; }
+.status-card[data-status-type="AURA"] { border-color: rgba(147,112,219,0.6) !important; }
+.status-card[data-status-type="TERRAIN"] { border-color: rgba(218,165,32,0.6) !important; }
+
+/* 状态卡片 Masonry 布局：每个卡片独立，不互相撑高 */
+.statuses-grid {
+  column-width: 240px;
+  column-gap: 10px;
+}
+
+.status-card-wrapper {
+  display: block;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  -moz-column-break-inside: avoid;
+  margin-bottom: 10px;
+}
+
+.status-details {
+  border-top: 1px solid rgba(201, 170, 113, 0.2);
+  padding-top: 8px;
 }

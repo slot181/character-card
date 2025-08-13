@@ -35,7 +35,8 @@
       this.bindTopLevelListeners();
 
       // 初始数据加载与渲染
-      this.applyUserPreferences();
+      this.syncUserPreferencesFromRoaming().finally(() => this.applyUserPreferences());
+      this.loadInputDraft();
       this.updateDynamicData().catch(err => console.error('[归墟] 初次加载失败:', err));
     },
 
@@ -74,6 +75,13 @@
         }
       });
 
+      // 全屏切换
+      $('#fullscreen-btn')?.addEventListener('click', () => this.toggleFullscreen());
+      // 全屏状态变化时更新按钮
+      document.addEventListener('fullscreenchange', () => this._updateFullscreenButtonState());
+      // 初始化一次按钮状态
+      this._updateFullscreenButtonState();
+
       // 右侧按钮 -> 组件入口
       $('#btn-inventory')?.addEventListener('click', () => window.InventoryComponent?.show?.());
       $('#btn-relationships')?.addEventListener('click', () => window.RelationshipsComponent?.show?.());
@@ -83,6 +91,7 @@
       $('#btn-show-extracted')?.addEventListener('click', () => window.ExtractedContentComponent?.show?.());
       $('#btn-save-load-manager')?.addEventListener('click', () => window.GuixuActionService?.showSaveLoadManager?.());
       $('#btn-settings')?.addEventListener('click', () => window.SettingsComponent?.show?.());
+      $('#btn-view-statuses')?.addEventListener('click', () => window.StatusesComponent?.show?.());
 
       // 世界线回顾
       $('#btn-view-journey-main')?.addEventListener('click', () => window.JourneyComponent?.show?.());
@@ -143,6 +152,10 @@
         const userMessage = input?.value?.trim() || '';
         await this.handleAction(userMessage);
       });
+
+      // 输入缓存：实时保存草稿
+      const quickInput = $('#quick-send-input');
+      quickInput?.addEventListener('input', () => this.saveInputDraft());
 
       // 当前指令面板
       $('#btn-quick-commands')?.addEventListener('click', (e) => {
@@ -333,12 +346,29 @@
         if (Array.isArray(statuses) && statuses.length > 0 && statuses[0] !== '$__META_EXTENSIBLE__$') {
           statusWrapper.innerHTML = statuses
             .map(s => {
-              let statusText = '未知状态';
-              if (typeof s === 'string') statusText = s;
-              else if (typeof s === 'object' && s !== null) {
-                statusText = window.GuixuHelpers.SafeGetValue(s, 'name', '未知状态');
+              let name = '未知状态';
+              let type = 'NEUTRAL';
+              let title = '';
+              if (typeof s === 'string') {
+                name = s;
+              } else if (typeof s === 'object' && s !== null) {
+                name = window.GuixuHelpers.SafeGetValue(s, 'name', '未知状态');
+                type = String(window.GuixuHelpers.SafeGetValue(s, 'type', 'NEUTRAL') || 'NEUTRAL').toUpperCase();
+                const known = new Set(['BUFF', 'DEBUFF', 'NEUTRAL', 'AURA', 'TERRAIN']);
+                if (!known.has(type)) type = 'NEUTRAL';
+                const desc = window.GuixuHelpers.SafeGetValue(s, 'description', '');
+                const dur = window.GuixuHelpers.SafeGetValue(s, 'duration', '');
+                const durText = (dur || dur === 0) ? ` 持续: ${dur}h` : '';
+                title = `${name}${durText}${desc ? ' - ' + desc : ''}`;
               }
-              return `<div class="status-effect"><div class="effect-icon"></div><span>${statusText}</span></div>`;
+              const cls = `status-effect status-effect--${type}`;
+              const escAttr = (s) => String(s)
+                .replace(/&/g, '&')
+                .replace(/"/g, '"')
+                .replace(/</g, '<')
+                .replace(/>/g, '>');
+              const safeTitle = escAttr(title);
+              return `<div class="${cls}"${title ? ` title="${safeTitle}"` : ''}><div class="effect-icon"></div><span>${name}</span></div>`;
             })
             .join('');
         } else {
@@ -636,9 +666,13 @@
         // 更新 UI
         this.renderUI(newMvuState.stat_data);
         await this.loadAndDisplayCurrentScene(aiResponse);
-        // 清理输入与待处理指令
+        // 清理输入与待处理指令（仅当 AI 返回有效文本时清除草稿）
         const input = document.getElementById('quick-send-input');
-        if (input) input.value = '';
+        const successText = typeof aiResponse === 'string' ? aiResponse.trim() : '';
+        if (successText) {
+          if (input) input.value = '';
+          this.clearInputDraft();
+        }
         window.GuixuState.update('pendingActions', []);
         window.GuixuHelpers.showTemporaryMessage('伟大梦星已回应。');
       } catch (error) {
@@ -747,6 +781,22 @@
       } catch (_) {}
     },
 
+    // 从 TavernHelper 全局变量同步用户偏好（跨设备漫游），若存在则覆盖本地
+    async syncUserPreferencesFromRoaming() {
+      try {
+        if (!window.TavernHelper || typeof window.TavernHelper.getVariables !== 'function') return;
+        const vars = window.TavernHelper.getVariables({ type: 'global' });
+        const roamingPrefs = vars && vars.Guixu && vars.Guixu.userPreferences;
+        if (roamingPrefs && typeof roamingPrefs === 'object') {
+          const state = window.GuixuState?.getState?.();
+          const merged = Object.assign({}, state?.userPreferences || {}, roamingPrefs);
+          window.GuixuState.update('userPreferences', merged);
+        }
+      } catch (e) {
+        console.warn('[归墟] 同步用户偏好(全局变量)失败:', e);
+      }
+    },
+
     // 应用用户主题偏好（背景、遮罩、字号）
     applyUserPreferences(prefsOverride = null) {
       try {
@@ -764,15 +814,95 @@
         const fontPx = Math.round(Number(prefs.storyFontSize ?? defaults.storyFontSize));
         container.style.setProperty('--guixu-story-font-size', `${fontPx}px`);
 
+        // 背景适配方式（bgFitMode -> CSS 变量）
+        const mode = String(prefs.bgFitMode || 'cover');
+        let size = 'cover', repeat = 'no-repeat', position = 'center';
+        switch (mode) {
+          case 'contain':
+            size = 'contain'; repeat = 'no-repeat'; position = 'center'; break;
+          case 'repeat':
+            size = 'auto'; repeat = 'repeat'; position = 'left top'; break;
+          case 'stretch':
+            size = '100% 100%'; repeat = 'no-repeat'; position = 'center'; break;
+          case 'center':
+            size = 'auto'; repeat = 'no-repeat'; position = 'center'; break;
+          case 'cover':
+          default:
+            size = 'cover'; repeat = 'no-repeat'; position = 'center'; break;
+        }
+        container.style.setProperty('--guixu-bg-size', size);
+        container.style.setProperty('--guixu-bg-repeat', repeat);
+        container.style.setProperty('--guixu-bg-position', position);
+
         // 背景图
-        if (prefs.backgroundUrl && typeof prefs.backgroundUrl === 'string' && prefs.backgroundUrl.trim() !== '') {
-          container.style.backgroundImage = `url("${prefs.backgroundUrl.trim()}")`;
-        } else {
+        const bg = (prefs.backgroundUrl || '').trim();
+        if (!bg) {
           container.style.backgroundImage = '';
+        } else if (bg.startsWith('lorebook://')) {
+          // 异步从世界书加载资源
+          const entryComment = bg.slice('lorebook://'.length);
+          (async () => {
+            try {
+              const dataUrl = await this._resolveLorebookDataUrl(entryComment);
+              if (dataUrl) {
+                container.style.backgroundImage = `url("${dataUrl}")`;
+              } else {
+                container.style.backgroundImage = '';
+              }
+            } catch (e) {
+              console.warn('[归墟] 读取世界书背景失败:', e);
+            }
+          })();
+        } else {
+          container.style.backgroundImage = `url("${bg}")`;
         }
       } catch (e) {
         console.warn('[归墟] 应用用户主题偏好失败:', e);
       }
+    },
+
+    async _resolveLorebookDataUrl(entryComment) {
+      try {
+        const bookName = window.GuixuConstants?.LOREBOOK?.NAME;
+        if (!bookName || !entryComment) return '';
+        const entries = await window.GuixuAPI.getLorebookEntries(bookName);
+        const entry = entries.find(e => (e.comment || '') === entryComment);
+        return entry ? (entry.content || '') : '';
+      } catch (e) {
+        console.warn('[归墟] _resolveLorebookDataUrl 出错:', e);
+        return '';
+      }
+    },
+
+    // 输入草稿：加载/保存/清除
+    loadInputDraft() {
+      try {
+        const draft = localStorage.getItem('guixu_input_draft');
+        if (draft) {
+          const input = document.getElementById('quick-send-input');
+          if (input && !input.value) {
+            input.value = draft;
+          }
+        }
+      } catch (e) {
+        console.warn('[归墟] 加载输入草稿失败:', e);
+      }
+    },
+    saveInputDraft() {
+      try {
+        const input = document.getElementById('quick-send-input');
+        const val = input ? input.value : '';
+        if (val && val.trim() !== '') {
+          localStorage.setItem('guixu_input_draft', val);
+        } else {
+          localStorage.removeItem('guixu_input_draft');
+        }
+      } catch (e) {
+        console.warn('[归墟] 保存输入草稿失败:', e);
+      }
+    },
+    clearInputDraft() {
+      try { localStorage.removeItem('guixu_input_draft'); } catch (_) {}
     },
 
     _extractLastTagContent(tagName, text, ignoreCase = false) {
@@ -861,6 +991,32 @@
     hideEquipmentTooltip() {
       const tooltip = document.getElementById('equipment-tooltip');
       if (tooltip) tooltip.style.display = 'none';
+    },
+
+    // 全屏切换：进入/退出全屏
+    toggleFullscreen() {
+      try {
+        const root = document.querySelector('.guixu-root-container') || document.documentElement;
+        if (!document.fullscreenElement) {
+          if (root.requestFullscreen) root.requestFullscreen();
+          else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen();
+          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+      } catch (e) {
+        console.warn('[归墟] 全屏切换失败:', e);
+        window.GuixuHelpers?.showTemporaryMessage?.('暂不支持全屏或被浏览器拦截');
+      }
+    },
+
+    // 根据全屏状态更新按钮图标与提示
+    _updateFullscreenButtonState() {
+      const btn = document.getElementById('fullscreen-btn');
+      if (!btn) return;
+      const isFull = !!document.fullscreenElement;
+      btn.title = isFull ? '退出全屏' : '进入全屏';
+      btn.textContent = isFull ? '⤡' : '⛶';
     },
 
     // 通用自定义确认弹窗（优先使用自带模态，其次回退到浏览器 confirm）
