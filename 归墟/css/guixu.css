@@ -309,15 +309,12 @@
       rgba(26, 26, 46, 0.8) 50%,
       rgba(45, 27, 61, 0.8) 100%);
   border-top: 1px solid #c9aa71;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  /* 修改对齐方式 */
   gap: 15px;
-  /* 增加间距 */
   padding: 0 15px;
   transition: height 0.2s ease-in-out;
-  /* 新增：高度变化动画 */
 }
 
 .quick-send-container {
@@ -325,6 +322,13 @@
   align-items: center;
   gap: 8px;
 }
+
+/* 网格布局对齐设置：左侧按钮靠左，输入区居中 */
+#btn-status-pop { justify-self: start; }
+.bottom-status .quick-send-container { justify-self: center; }
+
+/* 移动端：恢复纵向堆叠布局并避免与网格冲突 */
+.mobile-view .bottom-status { display: flex; flex-direction: column; }
 
 .quick-send-input {
   background: rgba(0, 0, 0, 0.5);
@@ -1513,19 +1517,47 @@
 .status-card[data-status-type="AURA"] { border-color: rgba(147,112,219,0.6) !important; }
 .status-card[data-status-type="TERRAIN"] { border-color: rgba(218,165,32,0.6) !important; }
 
-/* 状态卡片 Masonry 布局：每个卡片独立，不互相撑高 */
+/* 状态卡片网格布局：稳定不跳列，展开只向下扩展 */
 .statuses-grid {
-  column-width: 240px;
-  column-gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  align-items: start;
 }
 
 .status-card-wrapper {
   display: block;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  -moz-column-break-inside: avoid;
-  margin-bottom: 10px;
+  /* grid 下不需要 column-break 控制，避免不必要的重排 */
 }
+
+/* 状态一览：将详情改为浮层显示，避免展开时整体重排“挤来挤去” */
+#statuses-modal .statuses-grid { position: relative; overflow: visible; }
+#statuses-modal .status-card { position: relative; overflow: visible; }
+
+/* 浮层详情：相对卡片定位，向下展开为弹出层，不占据网格高度 */
+#statuses-modal .status-card .status-details {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  background: rgba(26, 26, 46, 0.95);
+  border: 1px solid rgba(201, 170, 113, 0.4);
+  border-radius: 6px;
+  padding: 10px;
+  z-index: 20;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+/* summary 区域保持紧凑，点击仅弹出浮层 */
+#statuses-modal .status-card > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+/* 保证弹层可见不被裁剪 */
+#statuses-modal .modal-body { overflow: auto; }
 
 .status-details {
   border-top: 1px solid rgba(201, 170, 113, 0.2);
@@ -1556,3 +1588,33 @@
   left: 0;
   top: 0;
 }
+
+/* 新增：状态浮窗按钮与布局调整 */
+#status-effects-wrapper { display: none !important; } /* 隐藏底部状态筹码滚动条 */
+#btn-view-statuses { display: none !important; }     /* 移除“查看状态”按钮 */
+#btn-quick-commands { display: none !important; }    /* 隐藏底部“当前指令”按钮 */
+
+.status-pop-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 15px;
+  border: 1px solid rgba(201, 170, 113, 0.3);
+  color: #c9aa71;
+  font-size: 12px;
+  cursor: pointer;
+}
+.status-pop-btn:hover {
+  background-color: rgba(201, 170, 113, 0.1);
+}
+.status-pop-btn .effect-icon {
+  width: 14px;
+  height: 14px;
+  background: #c9aa71;
+  border-radius: 50%;
+}
+
+/* 轻微调整快速发送容器的间距（保持居中时的视觉间隔） */
+.quick-send-container { margin: 0 10px; }

@@ -95,6 +95,8 @@
       $('#btn-save-load-manager')?.addEventListener('click', () => window.GuixuActionService?.showSaveLoadManager?.());
       $('#btn-settings')?.addEventListener('click', () => window.SettingsComponent?.show?.());
       $('#btn-view-statuses')?.addEventListener('click', () => window.StatusesComponent?.show?.());
+      // 新增：创建底部“状态一览”弹窗按钮（替代滚动条）
+      this.ensureStatusPopupButton();
 
       // 世界线回顾
       $('#btn-view-journey-main')?.addEventListener('click', () => window.JourneyComponent?.show?.());
@@ -271,6 +273,26 @@
           const idx = window.GuixuState?.getState?.().unifiedIndex || 1;
           idxEl.value = String(idx);
         }
+      }
+    },
+
+    // 新增：确保底部状态弹窗按钮存在
+    ensureStatusPopupButton() {
+      try {
+        const bottom = document.getElementById('bottom-status-container');
+        if (!bottom) return;
+        if (!document.getElementById('btn-status-pop')) {
+          const btn = document.createElement('button');
+          btn.id = 'btn-status-pop';
+          btn.className = 'status-pop-btn';
+          btn.innerHTML = '<div class="effect-icon"></div><span>状态一览</span>';
+          btn.title = '查看当前状态';
+          btn.addEventListener('click', () => window.StatusesComponent?.show?.());
+          const qs = bottom.querySelector('.quick-send-container');
+          bottom.insertBefore(btn, qs || null);
+        }
+      } catch (e) {
+        console.warn('[归墟] ensureStatusPopupButton 失败:', e);
       }
     },
 
