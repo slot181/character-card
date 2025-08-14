@@ -34,6 +34,48 @@
       // 顶层事件绑定
       this.bindTopLevelListeners();
 
+      // 自动检测并应用移动端视图
+      this._autoDetectMobileAndApply();
+
+      // 嵌入式(iframe)可见性兜底修复 + 移动端主内容固定高度
+      this._applyEmbeddedVisibilityFix();
+      this._reflowMobileLayout();
+
+      // 防抖处理，避免软键盘触发的频繁 resize 导致抖动
+      if (!this._onResizeBound) {
+        this._onResizeBound = true;
+        this._resizeTimer = null;
+        window.addEventListener('resize', () => {
+          clearTimeout(this._resizeTimer);
+          this._resizeTimer = setTimeout(() => {
+            // 若正在编辑输入框，跳过本次重排以防抖动
+            const ae = document.activeElement;
+            if (ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input'))) return;
+            this._pulseFastReflow(120);
+            this._applyEmbeddedVisibilityFix();
+            this._reflowMobileLayout();
+          }, 50);
+        });
+      }
+
+      // 监听 visualViewport 变化和方向变化，快速重排移动端布局
+      if (window.visualViewport && !this._vvBound) {
+        this._vvBound = true;
+        this._vvTimer = null;
+        const onVV = () => {
+          clearTimeout(this._vvTimer);
+          this._vvTimer = setTimeout(() => {
+            const ae = document.activeElement;
+            if (ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input'))) return;
+            this._pulseFastReflow(120);
+            this._reflowMobileLayout();
+          }, 50);
+        };
+        window.visualViewport.addEventListener('resize', onVV);
+        window.visualViewport.addEventListener('scroll', onVV);
+        window.addEventListener('orientationchange', () => setTimeout(() => this._reflowMobileLayout(), 50));
+      }
+
       // 初始数据加载与渲染
       this.syncUserPreferencesFromRoaming().finally(() => this.applyUserPreferences());
       this.loadInputDraft();
@@ -60,19 +102,8 @@
       // 视图切换
       $('#view-toggle-btn')?.addEventListener('click', () => {
         const container = $('.guixu-root-container');
-        const btn = $('#view-toggle-btn');
         const isMobile = !container?.classList.contains('mobile-view');
-        if (container && btn) {
-          if (isMobile) {
-            container.classList.add('mobile-view');
-            btn.textContent = '💻';
-            btn.title = '切换到桌面视图';
-          } else {
-            container.classList.remove('mobile-view');
-            btn.textContent = '📱';
-            btn.title = '切换到移动视图';
-          }
-        }
+        this.setMobileView(!!isMobile);
       });
 
       // 全屏切换
@@ -81,6 +112,22 @@
       document.addEventListener('fullscreenchange', () => { 
         this._updateFullscreenButtonState(); 
         this.applyUserPreferences(); 
+        // 全屏进入/退出时，确保移动端 FAB 存在并位于全屏子树内可见
+        this._ensureFABsVisibleInFullscreen();
+        // 快速恢复：临时禁用动画/过渡，并多次重排
+        this._pulseFastReflow(300);
+        this._reflowMobileLayout();
+        requestAnimationFrame(() => this._reflowMobileLayout());
+        setTimeout(() => this._reflowMobileLayout(), 200);
+      });
+      document.addEventListener('webkitfullscreenchange', () => { 
+        this._updateFullscreenButtonState(); 
+        this.applyUserPreferences(); 
+        this._ensureFABsVisibleInFullscreen();
+        this._pulseFastReflow(300);
+        this._reflowMobileLayout();
+        requestAnimationFrame(() => this._reflowMobileLayout());
+        setTimeout(() => this._reflowMobileLayout(), 200);
       });
       // 初始化一次按钮状态
       this._updateFullscreenButtonState();
@@ -219,6 +266,29 @@
           e.stopPropagation();
           return;
         }
+
+        // 点击空白关闭移动端“角色/功能”浮层（不影响模态）
+        try {
+          const rootEl = document.querySelector('.guixu-root-container');
+          if (rootEl && rootEl.classList.contains('mobile-view')) {
+            const target = e.target;
+            const charPanel = document.querySelector('.character-panel');
+            const funcPanel = document.querySelector('.interaction-panel');
+            const fabChar = document.getElementById('fab-character');
+            const fabFunc = document.getElementById('fab-functions');
+
+            if (rootEl.classList.contains('show-character-panel')) {
+              if (charPanel && !charPanel.contains(target) && (!fabChar || !fabChar.contains(target))) {
+                rootEl.classList.remove('show-character-panel');
+              }
+            }
+            if (rootEl.classList.contains('show-interaction-panel')) {
+              if (funcPanel && !funcPanel.contains(target) && (!fabFunc || !fabFunc.contains(target))) {
+                rootEl.classList.remove('show-interaction-panel');
+              }
+            }
+          }
+        } catch (_) {}
       });
 
       // 按下 ESC 关闭最顶部模态
@@ -295,6 +365,378 @@
       }
     },
 
+    // 新增：移动端视图切换与悬浮按钮
+    _getViewportEl() {
+      try { return document.getElementById('guixu-viewport'); } catch (_) { return null; }
+    },
+
+    setMobileView(enable) {
+      try {
+        const root = document.querySelector('.guixu-root-container');
+        const viewport = this._getViewportEl();
+        if (!root) return;
+
+        if (enable) {
+          // 显式切到移动端：移除桌面强制类
+          root.classList.remove('force-desktop', 'show-character-panel', 'show-interaction-panel');
+          viewport?.classList?.remove('force-desktop');
+          root.classList.add('mobile-view');
+          viewport?.classList?.add('mobile-view');
+          try { localStorage.setItem('guixu_force_view', 'mobile'); } catch(_) {}
+          this._ensureMobileFABs();
+          this._ensureFABsVisibleInFullscreen();
+        } else {
+          // 显式切到桌面端：移除移动端类并加上强制桌面类（覆盖小屏CSS兜底）
+          root.classList.remove('mobile-view', 'show-character-panel', 'show-interaction-panel');
+          viewport?.classList?.remove('mobile-view');
+          root.classList.add('force-desktop');
+          viewport?.classList?.add('force-desktop');
+          try { localStorage.setItem('guixu_force_view', 'desktop'); } catch(_) {}
+          this._removeMobileFABs();
+        }
+
+        // 更新按钮状态与偏好应用（会触发视口计算）
+        const btn = document.getElementById('view-toggle-btn');
+        if (btn) {
+          btn.textContent = enable ? '💻' : '📱';
+          btn.title = enable ? '切换到桌面视图' : '切换到移动视图';
+        }
+        this.applyUserPreferences();
+        this._applyEmbeddedVisibilityFix();
+        this._pulseFastReflow(200);
+        this._reflowMobileLayout();
+      } catch (e) {
+        console.warn('[归墟] setMobileView 失败:', e);
+      }
+    },
+
+    _autoDetectMobileAndApply() {
+      try {
+        const root = document.querySelector('.guixu-root-container');
+        const viewport = this._getViewportEl();
+
+        // 用户强制视图优先（localStorage 记忆）
+        try {
+          const pref = (localStorage.getItem('guixu_force_view') || '').toLowerCase();
+          if (pref === 'desktop') { this.setMobileView(false); return; }
+          if (pref === 'mobile')  { this.setMobileView(true);  return; }
+        } catch(_) {}
+
+        // 若用户显式切换到桌面端，则不再自动切换回移动端
+        if (root?.classList.contains('force-desktop') || viewport?.classList.contains('force-desktop')) return;
+
+        const shouldMobile =
+          (window.SillyTavern?.isMobile?.() === true) ||
+          window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+        if (shouldMobile) this.setMobileView(true);
+      } catch (e) {
+        console.warn('[归墟] 自动检测移动端失败:', e);
+      }
+    },
+
+    _ensureMobileFABs() {
+      try {
+        const root = document.querySelector('.guixu-root-container');
+        if (!root) return;
+        if (document.getElementById('fab-character') && document.getElementById('fab-functions')) return;
+
+        const makeFab = (id, text, title, leftRightStyles, onClick) => {
+          const btn = document.createElement('button');
+          btn.id = id;
+          btn.className = 'mobile-fab';
+          btn.type = 'button';
+          btn.textContent = text;
+          btn.title = title;
+          btn.style.position = 'fixed';
+          btn.style.zIndex = '10040';
+          btn.style.width = '56px';
+          btn.style.height = '56px';
+          btn.style.borderRadius = '50%';
+          btn.style.border = '1px solid #c9aa71';
+          btn.style.background = 'rgba(15, 15, 35, 0.9)';
+          btn.style.color = '#c9aa71';
+          btn.style.display = 'flex';
+          btn.style.alignItems = 'center';
+          btn.style.justifyContent = 'center';
+          btn.style.fontSize = '14px';
+          btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+          btn.style.touchAction = 'none';
+          btn.style.bottom = '88px';
+          Object.entries(leftRightStyles).forEach(([k, v]) => (btn.style[k] = v));
+          btn.addEventListener('click', onClick);
+          (root || document.body).appendChild(btn);
+
+          // 恢复持久化位置
+          try {
+            const saved = JSON.parse(localStorage.getItem(`guixu_fab_pos_${id}`) || 'null');
+            if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+              btn.style.left = `${saved.left}px`;
+              btn.style.top = `${saved.top}px`;
+              btn.style.right = 'auto';
+            }
+          } catch (_) {}
+
+          // 位置越界校正（视口变化或全屏切换后）
+          this._clampFabWithinViewport(btn);
+
+          this._makeDraggable(btn);
+          return btn;
+        };
+
+        makeFab(
+          'fab-character',
+          '角色',
+          '打开角色面板',
+          { left: '16px' },
+          () => {
+            const rootEl = document.querySelector('.guixu-root-container');
+            if (!rootEl) return;
+            const willOpen = !rootEl.classList.contains('show-character-panel');
+            rootEl.classList.toggle('show-character-panel', willOpen);
+            if (willOpen) rootEl.classList.remove('show-interaction-panel');
+          }
+        );
+
+        makeFab(
+          'fab-functions',
+          '功能',
+          '打开功能面板',
+          { right: '16px' },
+          () => {
+            const rootEl = document.querySelector('.guixu-root-container');
+            if (!rootEl) return;
+            const willOpen = !rootEl.classList.contains('show-interaction-panel');
+            rootEl.classList.toggle('show-interaction-panel', willOpen);
+            if (willOpen) rootEl.classList.remove('show-character-panel');
+          }
+        );
+      } catch (e) {
+        console.warn('[归墟] _ensureMobileFABs 失败:', e);
+      }
+    },
+
+    // 确保全屏时 FAB 可见且处于全屏元素子树内
+    _ensureFABsVisibleInFullscreen() {
+      try {
+        const root = document.querySelector('.guixu-root-container');
+        if (!root) return;
+        // 仅在移动端视图下处理
+        if (!root.classList.contains('mobile-view')) return;
+
+        // 确保存在
+        this._ensureMobileFABs();
+
+        // 将 FAB 重新挂载到 root（全屏元素）下，并提升层级
+        ['fab-character', 'fab-functions'].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          if (el.parentElement !== root) {
+            root.appendChild(el);
+          }
+          el.style.zIndex = '10060';
+          el.style.display = 'flex';
+          this._clampFabWithinViewport(el);
+        });
+      } catch (e) {
+        console.warn('[归墟] _ensureFABsVisibleInFullscreen 失败:', e);
+      }
+    },
+
+    // 将 FAB 位置限制在当前可视区域内（适配全屏/窗口变化）
+    _clampFabWithinViewport(el) {
+      try {
+        if (!el) return;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const rect = el.getBoundingClientRect();
+        const w = rect.width || 56;
+        const h = rect.height || 56;
+        const getNum = (v) => (parseFloat(String(v || '0')) || 0);
+        let left = getNum(el.style.left);
+        let top = getNum(el.style.top);
+        // 若未设置 left/top，使用当前可见位置
+        if (!left && !top) {
+          left = rect.left; top = rect.top;
+        }
+        left = Math.max(0, Math.min(vw - w, left));
+        top = Math.max(0, Math.min(vh - h, top));
+        el.style.left = `${left}px`;
+        el.style.top = `${top}px`;
+        el.style.right = 'auto';
+      } catch (_) {}
+    },
+
+    _removeMobileFABs() {
+      ['fab-character', 'fab-functions'].forEach(id => {
+        try {
+          const el = document.getElementById(id);
+          if (el) el.remove();
+        } catch (_) {}
+      });
+    },
+
+    _makeDraggable(el) {
+      try {
+        let dragging = false;
+        let startX = 0, startY = 0, originLeft = 0, originTop = 0;
+
+        const getNum = (v) => (parseFloat(String(v || '0')) || 0);
+        const pointerDown = (e) => {
+          dragging = true;
+          const pt = e.touches ? e.touches[0] : e;
+          startX = pt.clientX;
+          startY = pt.clientY;
+          originLeft = getNum(el.style.left);
+          originTop = getNum(el.style.top);
+          // 若未设置left/right，补一个基于当前布局的left
+          if (!el.style.left && !el.style.right) {
+            const rect = el.getBoundingClientRect();
+            el.style.left = `${rect.left}px`;
+            el.style.top = `${rect.top}px`;
+          }
+          document.addEventListener('pointermove', pointerMove, { passive: false });
+          document.addEventListener('pointerup', pointerUp, { passive: true, once: true });
+        };
+
+        const pointerMove = (e) => {
+          if (!dragging) return;
+          e.preventDefault();
+          const pt = e.touches ? e.touches[0] : e;
+          const dx = pt.clientX - startX;
+          const dy = pt.clientY - startY;
+          let nextLeft = originLeft + dx;
+          let nextTop = originTop + dy;
+
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
+          const rect = el.getBoundingClientRect();
+          const w = rect.width || 56;
+          const h = rect.height || 56;
+          nextLeft = Math.max(0, Math.min(vw - w, nextLeft));
+          nextTop = Math.max(0, Math.min(vh - h, nextTop));
+
+          el.style.left = `${nextLeft}px`;
+          el.style.right = 'auto';
+          el.style.top = `${nextTop}px`;
+        };
+
+        const pointerUp = () => {
+          dragging = false;
+          document.removeEventListener('pointermove', pointerMove);
+          // 持久化保存位置
+          try {
+            const left = getNum(el.style.left);
+            const top = getNum(el.style.top);
+            localStorage.setItem(`guixu_fab_pos_${el.id}`, JSON.stringify({ left, top }));
+          } catch (_) {}
+        };
+
+        el.addEventListener('pointerdown', pointerDown, { passive: true });
+      } catch (e) {
+        console.warn('[归墟] _makeDraggable 失败:', e);
+      }
+    },
+
+    // 嵌入式(iframe)环境下的可见性兜底：若高度过小则强制启用 embedded-fix 样式
+    _applyEmbeddedVisibilityFix() {
+      try {
+        const viewport = this._getViewportEl();
+        const root = document.querySelector('.guixu-root-container');
+        if (!viewport || !root) return;
+
+        // 注入一次性样式，确保即使外部CSS未更新也能生效
+        if (!document.getElementById('guixu-embedded-fix-style')) {
+          const style = document.createElement('style');
+          style.id = 'guixu-embedded-fix-style';
+          style.textContent = `
+            .guixu-viewport.embedded-fix{width:100%!important;height:auto!important;overflow:visible!important;}
+            .guixu-viewport.embedded-fix .guixu-root-container{position:static!important;left:auto!important;top:auto!important;width:100%!important;height:auto!important;}
+            .guixu-root-container.embedded-fix .game-container{display:flex!important;flex-direction:column!important;gap:0!important;min-height:480px;height:auto!important;}
+            .guixu-root-container.embedded-fix .main-content{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;}
+          `;
+          document.head.appendChild(style);
+        }
+
+        // 计算当前可见高度（避免 transform/absolute 影响导致为 0）
+        const rect = root.getBoundingClientRect();
+        const h = rect.height || root.offsetHeight || root.scrollHeight || 0;
+
+        // 条件：内容高度过小或 viewport 不可见时，开启兜底
+        const needFix = h < 260 || !(rect.width > 0 && rect.height > 0);
+        root.classList.toggle('embedded-fix', needFix);
+        viewport.classList.toggle('embedded-fix', needFix);
+      } catch (e) {
+        console.warn('[归墟] _applyEmbeddedVisibilityFix 失败:', e);
+      }
+    },
+
+    // 新增：移动端主内容固定高度 + 溢出滚动（避免正文根据文字量无限拉伸）
+    _reflowMobileLayout() {
+      try {
+        const root = document.querySelector('.guixu-root-container');
+        const viewport = this._getViewportEl();
+        const main = document.querySelector('.main-content');
+        if (!root || !main) return;
+
+        // 若当前正在编辑底部输入框，跳过本次重排，防止软键盘引发的抖动
+        const ae = document.activeElement;
+        if (ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input'))) return;
+
+        const isMobile = root.classList.contains('mobile-view') || (viewport && viewport.classList.contains('mobile-view'));
+        if (!isMobile) {
+          // 桌面视图还原
+          main.style.height = '';
+          main.style.maxHeight = '';
+          main.style.minHeight = '';
+          main.style.flex = '';
+          main.style.overflowY = '';
+          return;
+        }
+
+        // 计算可用高度：优先使用可视视口高度（处理移动端地址栏/软键盘影响）
+        const vvH = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : 0;
+        const baseH = Math.max(vvH, window.innerHeight || 0);
+        const containerH = Math.max(
+          baseH,
+          viewport?.getBoundingClientRect().height || 0,
+          root.getBoundingClientRect().height || 0
+        );
+
+        const topEl = document.querySelector('.top-status');
+        const bottomEl = document.getElementById('bottom-status-container');
+        const topH = topEl ? topEl.getBoundingClientRect().height : 0;
+        const bottomH = bottomEl ? bottomEl.getBoundingClientRect().height : 0;
+        const reserves = 12; // 上下预留像素
+
+        // 使用“可用高度”作为正文固定高度（尽可能大），并给出合理下限
+        let available = containerH - topH - bottomH - reserves;
+        if (!isFinite(available) || available <= 0) {
+          available = Math.floor((baseH || 800) * 0.75);
+        }
+        const target = Math.max(360, Math.round(available));
+
+        // 固定高度并强制滚动，避免正文撑开
+        main.style.flex = '0 0 auto';
+        main.style.height = `${target}px`;
+        main.style.maxHeight = `${target}px`;
+        main.style.minHeight = '360px';
+        main.style.overflowY = 'auto';
+      } catch (e) {
+        console.warn('[归墟] _reflowMobileLayout 失败:', e);
+      }
+    },
+
+    // 临时开启“快速重排模式”：为根容器添加 fast-reflow 类，短时间内禁用过渡/动画以迅速稳定布局
+    _pulseFastReflow(duration = 200) {
+      try {
+        const root = document.querySelector('.guixu-root-container');
+        if (!root) return;
+        root.classList.add('fast-reflow');
+        clearTimeout(this._frTimer);
+        this._frTimer = setTimeout(() => root.classList.remove('fast-reflow'), Math.max(50, duration|0));
+      } catch (_) {}
+    },
+ 
     async updateDynamicData() {
       const $ = (sel, ctx = document) => ctx.querySelector(sel);
       try {
@@ -913,6 +1355,23 @@
         const root = document.querySelector('.guixu-root-container');
         if (!viewport || !root) return;
 
+        // 移动端视图下禁用缩放与固定分辨率，开启自然滚动
+        const isMobileView = root.classList.contains('mobile-view') || viewport.classList.contains('mobile-view');
+        if (isMobileView) {
+          root.style.transformOrigin = 'top left';
+          root.style.transform = 'none';
+          root.style.left = '0px';
+          root.style.top = '0px';
+          // 嵌入式环境（如酒馆楼层 iframe）使用自适应高度，避免 100vh/100dvh 造成坍塌
+          viewport.classList.add('mobile-view');
+          // 清除任何强制尺寸/变量，交给 CSS 去控制
+          viewport.style.removeProperty('--viewport-w');
+          viewport.style.removeProperty('--viewport-h');
+          viewport.style.removeProperty('width');
+          viewport.style.removeProperty('height');
+          return;
+        }
+
         // 全屏时忽略自定义分辨率与缩放
         if (document.fullscreenElement) {
           root.style.transformOrigin = 'top left';
@@ -1053,22 +1512,30 @@
         tooltip.innerHTML = html;
         tooltip.style.display = 'block';
 
-        const tooltipRect = tooltip.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+        // 将 Tooltip 限制在 .guixu-root-container 内部，避免在移动端溢出屏幕
+        const root = document.querySelector('.guixu-root-container');
+        const containerRect = root
+          ? root.getBoundingClientRect()
+          : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
 
-        let left = event.pageX + 15;
-        let top = event.pageY + 15;
+        const pt = event.touches ? event.touches[0] : event;
 
-        if (left + tooltipRect.width > viewportWidth) {
-          left = event.pageX - tooltipRect.width - 15;
-        }
-        if (top + tooltipRect.height > viewportHeight) {
-          top = event.pageY - tooltipRect.height - 15;
-        }
+        // 计算相对于容器左上角的位置
+        let relLeft = (pt.clientX - containerRect.left) + 15;
+        let relTop = (pt.clientY - containerRect.top) + 15;
 
-        tooltip.style.left = `${left}px`;
-        tooltip.style.top = `${top}px`;
+        // 读取尺寸后进行边界收敛
+        const ttRect = tooltip.getBoundingClientRect();
+        const ttW = ttRect.width || 260;
+        const ttH = ttRect.height || 160;
+
+        const maxLeft = Math.max(8, containerRect.width - ttW - 8);
+        const maxTop = Math.max(8, containerRect.height - ttH - 8);
+        relLeft = Math.min(Math.max(8, relLeft), maxLeft);
+        relTop = Math.min(Math.max(8, relTop), maxTop);
+
+        tooltip.style.left = `${relLeft}px`;
+        tooltip.style.top = `${relTop}px`;
       } catch (e) {
         console.error('[归墟] 解析装备Tooltip数据失败:', e);
       }

@@ -73,7 +73,7 @@
             <div class="relationship-card" data-relationship-details='${relJson}'>
               <div class="relationship-header">
                   <p class="relationship-name" style="${tierStyle}">${name}</p>
-                  <button class="interaction-btn danger-btn btn-delete-relationship" style="padding: 4px 8px; font-size: 12px;">删除</button>
+                  <button class="btn-delete-relationship">删除</button>
               </div>
               <div class="relationship-body">
                 <p>${description}</p>

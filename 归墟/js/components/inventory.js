@@ -155,7 +155,7 @@
 
               // 所有物品都可丢弃或删除
               actionButton += `<button class="item-discard-btn" style="margin-left: 5px;">丢弃</button>`;
-              actionButton += `<button class="interaction-btn item-delete-btn danger-btn" style="margin-left: 5px;">删除</button>`;
+              actionButton += `<button class="item-delete-btn" style="margin-left: 5px;">删除</button>`;
 
               // 细节说明使用通用渲染工具，避免重复实现
               const itemDetailsHtml = (window.GuixuRenderers && typeof window.GuixuRenderers.renderItemDetailsForInventory === 'function')
