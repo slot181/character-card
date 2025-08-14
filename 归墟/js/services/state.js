@@ -98,6 +98,63 @@
       }
     },
 
+    /**
+     * 规范化并去重“指令队列”（pendingActions）
+     * 规则：
+     * - equip / unequip：按 (action,itemName,category) 去重，保留最后一次的设置
+     * - use / discard：按 (action,itemName[,category]) 聚合数量，数量求和
+     * - 保持整体相对顺序稳定（以首次出现位置为主）
+     */
+    normalizePendingActions(actions) {
+      try {
+        const arr = Array.isArray(actions) ? actions : [];
+        const buildSig = (a) => {
+          const action = a?.action || '';
+          const name = a?.itemName || a?.name || '';
+          const category = a?.category || '';
+          if (action === 'use') return `use|${name}`;
+          if (action === 'discard') return `discard|${name}|${category}`;
+          if (action === 'equip') return `equip|${name}|${category}`;
+          if (action === 'unequip') return `unequip|${name}|${category}`;
+          return `${action}|${name}|${category}`;
+        };
+
+        const acc = new Map();       // sig -> aggregated object
+        const firstIndex = new Map(); // sig -> first index for stable ordering
+
+        arr.forEach((a, i) => {
+          if (!a || typeof a !== 'object') return;
+          const sig = buildSig(a);
+          const action = a.action;
+
+          if (action === 'use' || action === 'discard') {
+            if (!acc.has(sig)) {
+              const qty = Number(a.quantity) || 1;
+              acc.set(sig, Object.assign({}, a, { quantity: qty }));
+              firstIndex.set(sig, i);
+            } else {
+              const obj = acc.get(sig);
+              obj.quantity = (Number(obj.quantity) || 0) + (Number(a.quantity) || 1);
+            }
+          } else {
+            // equip / unequip：保留“最后一次”
+            acc.set(sig, Object.assign({}, a));
+            if (!firstIndex.has(sig)) firstIndex.set(sig, i);
+          }
+        });
+
+        // 输出时按首次出现顺序
+        const ordered = Array.from(firstIndex.entries())
+          .sort((a, b) => a[1] - b[1])
+          .map(([sig]) => acc.get(sig));
+
+        return ordered;
+      } catch (e) {
+        console.warn('[归墟] normalizePendingActions 失败:', e);
+        return Array.isArray(actions) ? actions : [];
+      }
+    },
+
     // --- 暴露给全局的接口 ---
     getState() {
       return this;
@@ -106,6 +163,9 @@
     // 更新并保存状态的便捷方法
     update(key, value) {
         if (this.hasOwnProperty(key)) {
+            if (key === 'pendingActions') {
+                value = this.normalizePendingActions(Array.isArray(value) ? value : []);
+            }
             this[key] = value;
             // 根据key决定对应的localStorage键名并保存
             const storageMap = {

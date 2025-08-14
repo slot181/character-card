@@ -157,22 +157,29 @@
                     '天赋列表', '灵根列表',
                     '功法列表', '武器列表', '防具列表', '饰品列表', '法宝列表',
                     '丹药列表', '其他列表',
-                    '人物关系列表'
+                    '人物关系列表',
+                    '当前状态'
                 ];
 
                 const makeKey = (item) => {
                     if (item == null) return 'null';
                     if (typeof item === 'string') {
-                        // 字符串尝试按 JSON 解析后再取 key；否则直接用原串
-                        try { const obj = JSON.parse(item); return makeKey(obj); } catch (_) { return 'str:' + item; }
+                        // 优先尝试解析为 JSON；失败则按“名称去重”（忽略大小写与首尾空白）
+                        try { 
+                            const obj = JSON.parse(item); 
+                            return makeKey(obj); 
+                        } catch (_) { 
+                            const s = String(item).trim().toLowerCase();
+                            return `name:${s}`;
+                        }
                     }
                     if (typeof item === 'object') {
-                        if (item.id) return `id:${item.id}`;
-                        const name = item.name || item['名称'] || '';
-                        const tier = item.tier || item['品阶'] || '';
-                        const level = item.level || item['等级'] || '';
-                        const desc = item.description || item['描述'] || '';
-                        return `key:${name}|${tier}|${level}|${desc}`;
+                        // 若存在 id，则严格按 id 去重
+                        const id = item.id ?? item.ID ?? item.Id;
+                        if (id !== undefined && id !== null && String(id).trim() !== '') return `id:${String(id)}`;
+                        // 否则按“名称去重”（忽略大小写与首尾空白）
+                        const name = (item.name || item['名称'] || item.title || '').toString().trim().toLowerCase();
+                        return `name:${name}`;
                     }
                     return String(item);
                 };
