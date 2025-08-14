@@ -224,6 +224,15 @@
           if (!popup.contains(e.target) && !button.contains(e.target)) this.hideQuickCommands();
         }
 
+        // 点击空白处关闭设置FAB的菜单
+        const fabMenu = document.getElementById('fab-settings-menu');
+        const fabSettings = document.getElementById('fab-settings');
+        if (fabMenu && getComputedStyle(fabMenu).display !== 'none') {
+          if (!fabMenu.contains(e.target) && (!fabSettings || !fabSettings.contains(e.target))) {
+            this.hideSettingsFabMenu();
+          }
+        }
+
         // 指令中心按钮事件（委托，解决动态渲染导致的失效）
         const t = e.target;
         if (t && (t.id === 'btn-execute-commands' || t.id === 'btn-clear-commands' || t.id === 'btn-refresh-storage')) {
@@ -438,7 +447,7 @@
       try {
         const root = document.querySelector('.guixu-root-container');
         if (!root) return;
-        if (document.getElementById('fab-character') && document.getElementById('fab-functions')) return;
+        if (document.getElementById('fab-character') && document.getElementById('fab-functions') && document.getElementById('fab-settings')) return;
 
         const makeFab = (id, text, title, leftRightStyles, onClick) => {
           const btn = document.createElement('button');
@@ -449,8 +458,8 @@
           btn.title = title;
           btn.style.position = 'fixed';
           btn.style.zIndex = '10040';
-          btn.style.width = '56px';
-          btn.style.height = '56px';
+          btn.style.width = '44px';
+          btn.style.height = '44px';
           btn.style.borderRadius = '50%';
           btn.style.border = '1px solid #c9aa71';
           btn.style.background = 'rgba(15, 15, 35, 0.9)';
@@ -458,10 +467,10 @@
           btn.style.display = 'flex';
           btn.style.alignItems = 'center';
           btn.style.justifyContent = 'center';
-          btn.style.fontSize = '14px';
+          btn.style.fontSize = '12px';
           btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
           btn.style.touchAction = 'none';
-          btn.style.bottom = '88px';
+          btn.style.bottom = '72px';
           Object.entries(leftRightStyles).forEach(([k, v]) => (btn.style[k] = v));
           btn.addEventListener('click', onClick);
           (root || document.body).appendChild(btn);
@@ -510,9 +519,90 @@
             if (willOpen) rootEl.classList.remove('show-character-panel');
           }
         );
+
+        // 设置与更多 FAB（居中偏下，统一聚合 设置/全屏/切换视图）
+        const fabSettings = makeFab(
+          'fab-settings',
+          '⚙',
+          '打开设置与更多',
+          { left: 'calc(50% - 22px)' },
+          () => this.toggleSettingsFabMenu()
+        );
       } catch (e) {
         console.warn('[归墟] _ensureMobileFABs 失败:', e);
       }
+    },
+
+    // 设置FAB菜单：显示/隐藏/切换（仅移动端）
+    toggleSettingsFabMenu() {
+      try {
+        const menu = document.getElementById('fab-settings-menu');
+        if (menu && getComputedStyle(menu).display !== 'none') {
+          this.hideSettingsFabMenu();
+        } else {
+          this.showSettingsFabMenu();
+        }
+      } catch (_) {}
+    },
+    showSettingsFabMenu() {
+      try {
+        let menu = document.getElementById('fab-settings-menu');
+        const root = document.querySelector('.guixu-root-container');
+        if (!root) return;
+        if (!menu) {
+          menu = document.createElement('div');
+          menu.id = 'fab-settings-menu';
+          menu.style.position = 'fixed';
+          menu.style.zIndex = '10055';
+          menu.style.display = 'flex';
+          menu.style.flexDirection = 'column';
+          menu.style.gap = '8px';
+          menu.style.padding = '10px';
+          menu.style.border = '1px solid #c9aa71';
+          menu.style.borderRadius = '8px';
+          menu.style.background = 'rgba(15,15,35,0.95)';
+          menu.style.boxShadow = '0 6px 16px rgba(0,0,0,0.45)';
+          const mkBtn = (text, handler) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = text;
+            b.style.cssText = 'min-width:120px;height:34px;padding:0 10px;border:1px solid #c9aa71;border-radius:6px;background:linear-gradient(45deg,#1a1a2e,#2d1b3d);color:#c9aa71;font-size:12px;box-sizing:border-box;';
+            b.addEventListener('click', (e) => { e.stopPropagation(); this.hideSettingsFabMenu(); handler(); });
+            return b;
+          };
+          menu.appendChild(mkBtn('设置', () => window.SettingsComponent?.show?.()));
+          menu.appendChild(mkBtn('全屏切换', () => this.toggleFullscreen()));
+          menu.appendChild(mkBtn('切到桌面端', () => this.setMobileView(false)));
+          root.appendChild(menu);
+        } else {
+          menu.style.display = 'flex';
+        }
+        // 位置：贴着设置FAB上方居中
+        const fab = document.getElementById('fab-settings');
+        if (fab) {
+          const rect = fab.getBoundingClientRect();
+          // 先临时显示以获取尺寸
+          const vw = window.innerWidth;
+          const menuRect = menu.getBoundingClientRect();
+          const mw = menuRect.width || 160;
+          const mh = menuRect.height || 140;
+          const left = Math.max(8, Math.min(vw - mw - 8, rect.left + rect.width / 2 - mw / 2));
+          const top = Math.max(8, rect.top - mh - 10);
+          menu.style.left = `${left}px`;
+          menu.style.top = `${top}px`;
+        } else {
+          menu.style.left = 'calc(50% - 80px)';
+          menu.style.top = '30%';
+        }
+      } catch (e) {
+        console.warn('[归墟] showSettingsFabMenu 失败:', e);
+      }
+    },
+    hideSettingsFabMenu() {
+      try {
+        const menu = document.getElementById('fab-settings-menu');
+        if (menu) menu.style.display = 'none';
+      } catch (_) {}
     },
 
     // 确保全屏时 FAB 可见且处于全屏元素子树内
@@ -527,7 +617,7 @@
         this._ensureMobileFABs();
 
         // 将 FAB 重新挂载到 root（全屏元素）下，并提升层级
-        ['fab-character', 'fab-functions'].forEach(id => {
+        ['fab-character', 'fab-functions', 'fab-settings'].forEach(id => {
           const el = document.getElementById(id);
           if (!el) return;
           if (el.parentElement !== root) {
@@ -537,6 +627,12 @@
           el.style.display = 'flex';
           this._clampFabWithinViewport(el);
         });
+        // 设置菜单也挂到 root 之下，确保全屏时可见
+        const settingsMenu = document.getElementById('fab-settings-menu');
+        if (settingsMenu && settingsMenu.parentElement !== root) {
+          root.appendChild(settingsMenu);
+        }
+        if (settingsMenu) settingsMenu.style.zIndex = '10065';
       } catch (e) {
         console.warn('[归墟] _ensureFABsVisibleInFullscreen 失败:', e);
       }
@@ -567,7 +663,7 @@
     },
 
     _removeMobileFABs() {
-      ['fab-character', 'fab-functions'].forEach(id => {
+      ['fab-character', 'fab-functions', 'fab-settings', 'fab-settings-menu'].forEach(id => {
         try {
           const el = document.getElementById(id);
           if (el) el.remove();
@@ -1621,6 +1717,124 @@
           if (typeof onCancel === 'function') onCancel();
         }
       }
+      },
+
+      // 自定义数字输入弹窗（与UI一致），返回 Promise<number|null>
+      async showNumberPrompt({ title = '请输入数量', message = '', min = 1, max = 99, defaultValue = 1 } = {}) {
+        return new Promise((resolve) => {
+          try {
+            // 防重：若此前遗留了数量弹窗，先移除，避免叠加导致需要点两次关闭
+            try { const ex = document.getElementById('custom-number-prompt-modal'); if (ex) ex.remove(); } catch(_) {}
+            const root = document.querySelector('.guixu-root-container') || document.body;
+
+            // 外层遮罩
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'custom-number-prompt-modal';
+
+            // 内容容器（复用确认弹窗风格）
+            const content = document.createElement('div');
+            content.className = 'modal-content confirm-modal-content';
+            content.style.width = 'auto';
+            content.style.maxWidth = '420px';
+            content.style.height = 'auto';
+            content.style.maxHeight = 'none';
+
+            // 头部
+            const header = document.createElement('div');
+            header.className = 'modal-header';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'modal-title';
+            titleEl.textContent = String(title || '请输入数量');
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'modal-close-btn';
+            closeBtn.innerHTML = '&times;';
+
+            header.appendChild(titleEl);
+            header.appendChild(closeBtn);
+
+            // 主体
+            const body = document.createElement('div');
+            body.className = 'modal-body';
+
+            const msg = document.createElement('div');
+            msg.className = 'confirm-modal-message';
+            msg.textContent = String(message || '');
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.value = String(defaultValue ?? min ?? 1);
+            input.min = String(min ?? 1);
+            input.max = String(max ?? 9999);
+            input.step = '1';
+            input.style.cssText = 'margin-top:10px;width:100%;height:36px;padding:0 10px;background:rgba(0,0,0,0.4);border:1px solid #8b7355;border-radius:4px;color:#e0dcd1;box-sizing:border-box;font-size:14px;';
+
+            body.appendChild(msg);
+            body.appendChild(input);
+
+            // 底部按钮
+            const footer = document.createElement('div');
+            footer.className = 'confirm-modal-buttons';
+
+            const okBtn = document.createElement('button');
+            okBtn.className = 'interaction-btn';
+            okBtn.style.cssText = 'min-width:120px;height:36px;padding:0 12px;box-sizing:border-box;';
+            okBtn.textContent = '确定';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'danger-btn';
+            cancelBtn.style.cssText = 'min-width:120px;height:36px;padding:0 12px;box-sizing:border-box;';
+            cancelBtn.textContent = '取消';
+
+            footer.appendChild(okBtn);
+            footer.appendChild(cancelBtn);
+
+            // 组装
+            content.appendChild(header);
+            content.appendChild(body);
+            content.appendChild(footer);
+            overlay.appendChild(content);
+            root.appendChild(overlay);
+
+            const cleanup = (ret = null) => {
+              try { overlay.remove(); } catch (_) {}
+              resolve(ret);
+            };
+
+            closeBtn.addEventListener('click', () => cleanup(null));
+            cancelBtn.addEventListener('click', () => cleanup(null));
+            overlay.addEventListener('click', (e) => {
+              if (e.target === overlay) cleanup(null);
+            });
+            okBtn.addEventListener('click', () => {
+              const n = parseInt(input.value, 10);
+              const minN = Number(min ?? 1);
+              const maxN = Number(max ?? 9999);
+              if (!Number.isFinite(n) || n < minN || n > maxN) {
+                window.GuixuHelpers?.showTemporaryMessage?.(`请输入 ${minN}-${maxN} 的整数`);
+                return;
+              }
+              cleanup(n);
+            });
+
+            // 显示与交互
+            overlay.style.display = 'flex';
+            overlay.style.zIndex = '9000';
+            setTimeout(() => input.focus(), 0);
+            input.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') okBtn.click();
+              if (e.key === 'Escape') cancelBtn.click();
+            });
+          } catch (e) {
+            console.warn('[归墟] showNumberPrompt 失败，回退到 prompt:', e);
+            const fallback = prompt(message || '请输入数量', String(defaultValue ?? min ?? 1));
+            const n = parseInt(String(fallback || ''), 10);
+            if (!Number.isFinite(n)) resolve(null);
+            else resolve(n);
+          }
+        });
       },
 
       // 浏览器端本地缓存刷新（后备实现）

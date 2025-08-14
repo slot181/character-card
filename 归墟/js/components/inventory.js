@@ -28,6 +28,7 @@
 
         body.innerHTML = this.render(stat_data || {});
         this.bindEvents(body);
+        this.bindSearch(body);
       } catch (error) {
         console.error('[归墟] 加载背包时出错:', error);
         body.innerHTML = `<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">加载背包时出错: ${error.message}</p>`;
@@ -52,7 +53,12 @@
         { title: '杂物', key: '其他列表', equipable: false },
       ];
 
-      let html = '';
+      let html = `
+        <div class="inventory-search">
+          <input type="text" id="inventory-search-input" placeholder="搜索物品名称或描述…" />
+          <button id="inventory-search-clear" class="interaction-btn">清除</button>
+        </div>
+      `;
 
       categories.forEach(cat => {
         const rawItems = stat_data?.[cat.key]?.[0];
@@ -164,18 +170,36 @@
 
               html += `
                 <div class="inventory-item" data-item-details='${itemJson}' data-category='${cat.title}'>
-                  <div class="item-header">
-                    <div class="item-name-desc">
+                  <!-- 第一行：名称 + 品阶 + 右侧数量 -->
+                  <div class="item-row item-row--headline">
+                    <div class="item-head-left">
                       <span class="item-name" style="${tierStyle}">${name}</span>
-                      <div class="item-description">${description}</div>
+                      ${tier !== '无' ? `<span class="item-tier" style="${tierStyle}">【${tier}】</span>` : ''}
                     </div>
-                    <div class="item-meta" style="text-align: right; white-space: nowrap; display: flex; align-items: center;">
-                      ${tierDisplay}
+                    <div class="item-head-right">
                       ${quantityDisplay}
-                      ${actionButton}
                     </div>
                   </div>
-                  ${itemDetailsHtml ? `<div class="item-details">${itemDetailsHtml}</div>` : ''}
+
+                  <!-- 第二行：描述 -->
+                  <div class="item-row item-row--desc">
+                    <div class="item-description">${description}</div>
+                  </div>
+
+                  <!-- 第三行：可折叠的详细信息（如特殊词条等） -->
+                  ${
+                    itemDetailsHtml
+                      ? `<details class="item-row item-row--details">
+                          <summary class="item-row--details-summary">详细信息</summary>
+                          <div class="item-details">${itemDetailsHtml}</div>
+                        </details>`
+                      : ''
+                  }
+
+                  <!-- 第四行：操作按钮（装备/辅修/丢弃/删除等） -->
+                  <div class="item-row item-row--actions">
+                    ${actionButton}
+                  </div>
                 </div>
               `;
             } catch (e) {
@@ -197,6 +221,10 @@
 
     bindEvents(container) {
       const { $ } = window.GuixuDOM;
+
+      // 防重复绑定：多次 render 后只绑定一次，避免点击一次触发两次事件（导致弹窗出现两次）
+      if (container._inventoryClickBound) return;
+      container._inventoryClickBound = true;
 
       container.addEventListener('click', async (e) => {
         const target = e.target;
@@ -225,6 +253,67 @@
           await this.deleteItem(item, category);
         }
       });
+    },
+
+    // 搜索绑定与过滤（背包）
+    bindSearch(container) {
+      try {
+        const input = container.querySelector('#inventory-search-input');
+        const clear = container.querySelector('#inventory-search-clear');
+        const apply = () => {
+          const q = (input?.value || '').trim().toLowerCase();
+          this.applyInventoryFilter(container, q);
+        };
+        if (input && !input._boundInventorySearch) {
+          input._boundInventorySearch = true;
+          input.addEventListener('input', () => apply());
+        }
+        if (clear && !clear._boundInventoryClear) {
+          clear._boundInventoryClear = true;
+          clear.addEventListener('click', () => {
+            if (input) input.value = '';
+            this.applyInventoryFilter(container, '');
+          });
+        }
+      } catch (e) {
+        console.warn('[归墟] bindSearch 失败:', e);
+      }
+    },
+    applyInventoryFilter(container, query) {
+      try {
+        const items = Array.from(container.querySelectorAll('.inventory-item'));
+        const matches = (el) => {
+          if (!query) return true;
+          const name = el.querySelector('.item-name')?.textContent || '';
+          const desc = el.querySelector('.item-description')?.textContent || '';
+          const tier = el.querySelector('.item-tier')?.textContent || '';
+          const text = `${name} ${desc} ${tier}`.toLowerCase();
+          return text.includes(query);
+        };
+        items.forEach(el => {
+          el.style.display = matches(el) ? '' : 'none';
+        });
+        // 若分类下所有物品都隐藏，则提示“无匹配物品”
+        const cats = Array.from(container.querySelectorAll('.inventory-category'));
+        cats.forEach(cat => {
+          const visibleCount = cat.querySelectorAll('.inventory-item-list .inventory-item:not([style*="display: none"])').length;
+          const list = cat.querySelector('.inventory-item-list');
+          if (!list) return;
+          const existed = list.querySelector('.empty-category-text');
+          if (visibleCount === 0) {
+            if (!existed) {
+              const p = document.createElement('p');
+              p.className = 'empty-category-text';
+              p.textContent = '无匹配物品';
+              list.appendChild(p);
+            }
+          } else {
+            if (existed) existed.remove();
+          }
+        });
+      } catch (e) {
+        console.warn('[归墟] applyInventoryFilter 失败:', e);
+      }
     },
 
     // 逻辑：装备
@@ -350,7 +439,7 @@
       if (window.GuixuAttributeService?.updateDisplay) window.GuixuAttributeService.updateDisplay();
     },
 
-    // 逻辑：使用（数量类）
+    // 逻辑：使用（数量类）— 使用统一风格的数量输入弹窗，避免自动使用
     async useItem(item) {
       const h = window.GuixuHelpers;
       const state = window.GuixuState.getState();
@@ -358,20 +447,60 @@
 
       const itemName = h.SafeGetValue(item, 'name');
       const originalQuantity = parseInt(h.SafeGetValue(item, 'quantity', 0), 10);
-      const pendingUses = pending.filter(a => a.action === 'use' && a.itemName === itemName).reduce((t, a) => t + (a.quantity || 0), 0);
 
-      if (originalQuantity - pendingUses <= 0) {
+      // 计算已在队列中的使用/丢弃数量，得到可用数量
+      const pendingUses = pending.filter(a => a.action === 'use' && a.itemName === itemName).reduce((t, a) => t + (a.quantity || 0), 0);
+      const pendingDiscards = pending.filter(a => a.action === 'discard' && a.itemName === itemName).reduce((t, a) => t + (a.quantity || 0), 0);
+      const available = originalQuantity - pendingUses - pendingDiscards;
+
+      if (available <= 0) {
         h.showTemporaryMessage(`${itemName} 已用完或已在指令队列中。`);
         return;
       }
 
+      let qty = null;
+
+      // 优先使用与UI一致的数量弹窗；若环境异常则回退到浏览器prompt
+      const askNumber = async (min, max, defVal, msg) => {
+        if (window.GuixuMain && typeof window.GuixuMain.showNumberPrompt === 'function') {
+          return await window.GuixuMain.showNumberPrompt({
+            title: '使用消耗品',
+            message: msg,
+            min, max, defaultValue: defVal
+          });
+        } else {
+          const input = prompt(`${msg}（${min}-${max}）`, String(defVal));
+          const n = parseInt(String(input || ''), 10);
+          return Number.isFinite(n) ? n : null;
+        }
+      };
+
+      if (available > 1) {
+        qty = await askNumber(1, available, 1, `可用数量：${available}。请输入要使用的数量`);
+      } else {
+        // 仅有1个时也走确认弹窗，避免“未确认就使用”的体验
+        qty = await askNumber(1, 1, 1, `仅有 1 个【${itemName}】。是否确认使用？`);
+      }
+
+      // 用户取消或输入非法时不进行任何修改
+      if (!Number.isFinite(qty) || qty === null) {
+        h.showTemporaryMessage('已取消');
+        return;
+      }
+      if (qty <= 0 || qty > available) {
+        h.showTemporaryMessage('无效的数量');
+        return;
+      }
+
+      // 合并到现有 pending 项或新建（仅在确认后）
       const exist = pending.find(a => a.action === 'use' && a.itemName === itemName);
-      if (exist) exist.quantity = (exist.quantity || 0) + 1;
-      else pending.push({ action: 'use', itemName, quantity: 1 });
+      if (exist) exist.quantity = (exist.quantity || 0) + qty;
+      else pending.push({ action: 'use', itemName, quantity: qty });
 
       window.GuixuState.update('pendingActions', pending);
-      h.showTemporaryMessage(`已将 [使用 ${itemName}] 加入指令队列`);
+      h.showTemporaryMessage(`已将 [使用 ${qty} 个 ${itemName}] 加入指令队列`);
 
+      // 仅在确认后刷新UI
       await this.show();
     },
 
