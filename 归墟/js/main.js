@@ -20,6 +20,135 @@
 
   const GuixuMain = {
     _initialized: false,
+    // MVU 占位符常量
+    _EXT: '$__META_EXTENSIBLE__$',
+
+    // 确保数组首位包含占位符（若无则自动补上）
+    _ensureMetaExtensibleArray(arr) {
+      try {
+        const EXT = this._EXT;
+        if (!Array.isArray(arr)) return arr;
+        // 统一采用“末尾补占位符”的策略，便于 LLM 追加并与示例结构保持一致
+        if (arr.length === 0) return [EXT];
+        if (arr.includes(EXT)) return arr;
+        return [...arr, EXT];
+      } catch (_) { return arr; }
+    },
+
+    // 对指定路径数组进行“占位符”修复
+    _ensureExtensibleMarkersOnPaths(data, paths) {
+      try {
+        const _ = window.GuixuAPI?.lodash;
+        if (!data || !_) return;
+        paths.forEach((p) => {
+          const arr = _.get(data, p);
+          if (Array.isArray(arr)) {
+            const ensured = this._ensureMetaExtensibleArray(arr);
+            if (ensured !== arr) _.set(data, p, ensured);
+          }
+        });
+      } catch (_) {}
+    },
+
+    // 针对当前使用到的 MVU 列表字段修复“__META_EXTENSIBLE__”丢失问题
+    _ensureExtensibleMarkers(statData) {
+      try {
+        if (!statData) return;
+        const _ = window.GuixuAPI?.lodash;
+        // 1) 顶层/一层内“列表数组”保底（首位补占位符，用于 LLM 追加项）
+        const listPaths = [
+          '天赋列表.0',
+          '灵根列表.0',
+          '当前状态.0',
+          '武器',
+          '主修功法',
+          '辅修心法',
+          '防具',
+          '饰品',
+          '法宝栏1',
+          // 人物关系与背包各列表
+          '人物关系列表.0',
+          '功法列表.0',
+          '武器列表.0',
+          '防具列表.0',
+          '饰品列表.0',
+          '法宝列表.0',
+          '丹药列表.0',
+          '其他列表.0',
+        ];
+        this._ensureExtensibleMarkersOnPaths(statData, listPaths);
+
+        // 2) 列表项内部的“词条数组”（special_effects）保底（用于 LLM 追加新词条）
+        const ensureItemSpecialEffects = (arr) => {
+          if (!Array.isArray(arr)) return;
+          arr.forEach((it, idx) => {
+            if (it && typeof it === 'object' && Array.isArray(it.special_effects)) {
+              arr[idx].special_effects = this._ensureMetaExtensibleArray(it.special_effects);
+            }
+          });
+        };
+
+        // 针对装备/功法等（数组 -> 对象 -> special_effects）
+        ['武器','主修功法','辅修心法','防具','饰品','法宝栏1'].forEach(p => {
+          const a = _?.get(statData, p);
+          if (Array.isArray(a)) ensureItemSpecialEffects(a);
+        });
+
+        // 天赋/灵根/背包列表（它们一般是 list 在 [0]，内部元素也可能带 special_effects）
+        const talents = _?.get(statData, '天赋列表.0');
+        const linggen = _?.get(statData, '灵根列表.0');
+        if (Array.isArray(talents)) ensureItemSpecialEffects(talents);
+        if (Array.isArray(linggen)) ensureItemSpecialEffects(linggen);
+
+        // 背包各列表
+        const invLists = ['功法列表.0','武器列表.0','防具列表.0','饰品列表.0','法宝列表.0','丹药列表.0','其他列表.0'];
+        invLists.forEach(p => {
+          const a = _?.get(statData, p);
+          if (Array.isArray(a)) ensureItemSpecialEffects(a);
+        });
+
+        // 人物关系列表内的过往事件(event_history)也补占位符
+        const rels = _?.get(statData, '人物关系列表.0');
+        if (Array.isArray(rels)) {
+          rels.forEach((rel, idx) => {
+            if (rel && typeof rel === 'object' && Array.isArray(rel.event_history)) {
+              rels[idx].event_history = this._ensureMetaExtensibleArray(rel.event_history);
+            }
+          });
+        }
+      } catch (_) {}
+    },
+
+    // 过滤数组中的占位符（用于渲染前忽略）
+    _stripMeta(arr) {
+      try {
+        const EXT = this._EXT;
+        return Array.isArray(arr) ? arr.filter(x => x !== EXT) : arr;
+      } catch (_) { return arr; }
+    },
+
+    // 全域“渲染前过滤”：深度复制并删除任意数组中的占位符
+    _deepStripMeta(value) {
+      const EXT = this._EXT;
+      const t = Object.prototype.toString.call(value);
+      if (t === '[object Array]') {
+        // 逐项深度过滤，但先移除占位符
+        const arr = value.filter(v => v !== EXT);
+        return arr.map(v => this._deepStripMeta(v));
+      }
+      if (t === '[object Object]') {
+        const out = {};
+        for (const k in value) {
+          // 仅对自有属性处理
+          if (Object.prototype.hasOwnProperty.call(value, k)) {
+            out[k] = this._deepStripMeta(value[k]);
+          }
+        }
+        return out;
+      }
+      // 原始类型/函数/其它，直接返回
+      return value;
+    },
 
     init() {
       if (this._initialized) return;
@@ -995,9 +1124,13 @@
           const normalizedState = (window.GuixuActionService && typeof window.GuixuActionService.normalizeMvuState === 'function')
             ? window.GuixuActionService.normalizeMvuState(rawState)
             : rawState;
+// 修复：确保 MVU 列表占位符存在，避免后续写入丢失 __META_EXTENSIBLE__
+try { this._ensureExtensibleMarkers(normalizedState.stat_data); } catch(_) {}
+          // 渲染用：深度过滤掉占位符，避免任何界面看到占位符
+          const toRender = this._deepStripMeta(normalizedState.stat_data);
 
           window.GuixuState.update('currentMvuState', normalizedState);
-          this.renderUI(normalizedState.stat_data);
+          this.renderUI(toRender);
 
           // 同步填充右下角提取区文本
           await this.loadAndDisplayCurrentScene();
@@ -1021,6 +1154,8 @@
     },
 
     renderUI(data) {
+      // 全域“渲染前过滤”：无论从哪里调用 renderUI，都先深度移除占位符，避免出现在界面
+      data = this._deepStripMeta(data);
       const $ = (sel, ctx = document) => ctx.querySelector(sel);
       if (!data) return;
 
@@ -1119,7 +1254,8 @@
         if (!slot) continue;
 
         const itemArray = window.GuixuAPI.lodash.get(data, mvuKey, null);
-        const item = Array.isArray(itemArray) && itemArray.length > 0 ? itemArray[0] : null;
+        const list = Array.isArray(itemArray) ? itemArray.filter(x => x !== this._EXT) : [];
+        const item = list.length > 0 ? list[0] : null;
 
         if (item && typeof item === 'object') {
           const tier = window.GuixuHelpers.SafeGetValue(item, 'tier', '凡品');

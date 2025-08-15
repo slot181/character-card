@@ -19,7 +19,10 @@
 
       try {
         const messages = await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId());
-        const stat_data = messages?.[0]?.data?.stat_data;
+        let stat_data = messages?.[0]?.data?.stat_data;
+        if (window.GuixuMain && typeof window.GuixuMain._deepStripMeta === 'function') {
+          stat_data = window.GuixuMain._deepStripMeta(stat_data);
+        }
         if (!stat_data) {
           body.innerHTML = '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取人物关系数据。</p>';
           return;
@@ -197,7 +200,10 @@
 
       try {
         const messages = await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId());
-        const stat_data = messages?.[0]?.data?.stat_data;
+        let stat_data = messages?.[0]?.data?.stat_data;
+        if (window.GuixuMain && typeof window.GuixuMain._deepStripMeta === 'function') {
+          stat_data = window.GuixuMain._deepStripMeta(stat_data);
+        }
         if (!stat_data) {
           body.innerHTML = '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取人物关系数据。</p>';
           return;

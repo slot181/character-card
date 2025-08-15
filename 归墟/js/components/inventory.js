@@ -19,7 +19,10 @@
 
       try {
         const messages = await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId());
-        const stat_data = messages?.[0]?.data?.stat_data;
+        let stat_data = messages?.[0]?.data?.stat_data;
+        if (window.GuixuMain && typeof window.GuixuMain._deepStripMeta === 'function') {
+          stat_data = window.GuixuMain._deepStripMeta(stat_data);
+        }
 
         if (!stat_data) {
           body.innerHTML = '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">无法获取背包数据。</p>';
@@ -36,6 +39,10 @@
     },
 
     render(stat_data) {
+      // 渲染前全域过滤，移除任意层出现的 $__META_EXTENSIBLE__$
+      if (window.GuixuMain && typeof window.GuixuMain._deepStripMeta === 'function') {
+        stat_data = window.GuixuMain._deepStripMeta(stat_data);
+      }
       const h = window.GuixuHelpers;
       const state = window.GuixuState.getState();
 
