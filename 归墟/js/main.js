@@ -40,6 +40,8 @@
       // 嵌入式(iframe)可见性兜底修复 + 移动端主内容固定高度
       this._applyEmbeddedVisibilityFix();
       this._reflowMobileLayout();
+      // 初始一帧后再恢复一次FAB位置，避免早期布局尺寸为0导致的夹紧错位
+      setTimeout(() => this._restoreFabPositions(), 100);
 
       // 防抖处理，避免软键盘触发的频繁 resize 导致抖动
       if (!this._onResizeBound) {
@@ -48,12 +50,11 @@
         window.addEventListener('resize', () => {
           clearTimeout(this._resizeTimer);
           this._resizeTimer = setTimeout(() => {
-            // 若正在编辑输入框，跳过本次重排以防抖动
             const ae = document.activeElement;
-            if (ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input'))) return;
+            const editing = !!(ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input')));
             this._pulseFastReflow(120);
             this._applyEmbeddedVisibilityFix();
-            this._reflowMobileLayout();
+            this._reflowMobileLayout(editing);
           }, 50);
         });
       }
@@ -66,9 +67,9 @@
           clearTimeout(this._vvTimer);
           this._vvTimer = setTimeout(() => {
             const ae = document.activeElement;
-            if (ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input'))) return;
+            const editing = !!(ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input')));
             this._pulseFastReflow(120);
-            this._reflowMobileLayout();
+            this._reflowMobileLayout(editing);
           }, 50);
         };
         window.visualViewport.addEventListener('resize', onVV);
@@ -76,7 +77,9 @@
         window.addEventListener('orientationchange', () => setTimeout(() => this._reflowMobileLayout(), 50));
       }
 
-      // 初始数据加载与渲染
+                  // 初始数据加载与渲染
+      this._fixSettingsResolutionRowLayout();
+      this._ensureResolutionInputsUsable();
       this.syncUserPreferencesFromRoaming().finally(() => this.applyUserPreferences());
       this.loadInputDraft();
       this.updateDynamicData().catch(err => console.error('[归墟] 初次加载失败:', err));
@@ -114,20 +117,25 @@
         this.applyUserPreferences(); 
         // 全屏进入/退出时，确保移动端 FAB 存在并位于全屏子树内可见
         this._ensureFABsVisibleInFullscreen();
+        this._restoreFabPositions();
         // 快速恢复：临时禁用动画/过渡，并多次重排
         this._pulseFastReflow(300);
         this._reflowMobileLayout();
         requestAnimationFrame(() => this._reflowMobileLayout());
         setTimeout(() => this._reflowMobileLayout(), 200);
+        // 再次延时恢复一次，以适配浏览器状态栏/地址栏动画后的窗口尺寸
+        setTimeout(() => this._restoreFabPositions(), 120);
       });
       document.addEventListener('webkitfullscreenchange', () => { 
         this._updateFullscreenButtonState(); 
         this.applyUserPreferences(); 
         this._ensureFABsVisibleInFullscreen();
+        this._restoreFabPositions();
         this._pulseFastReflow(300);
         this._reflowMobileLayout();
         requestAnimationFrame(() => this._reflowMobileLayout());
         setTimeout(() => this._reflowMobileLayout(), 200);
+        setTimeout(() => this._restoreFabPositions(), 120);
       });
       // 初始化一次按钮状态
       this._updateFullscreenButtonState();
@@ -139,7 +147,13 @@
       $('#btn-guixu-system')?.addEventListener('click', () => window.GuixuSystemComponent?.show?.());
       $('#btn-show-extracted')?.addEventListener('click', () => window.ExtractedContentComponent?.show?.());
       $('#btn-save-load-manager')?.addEventListener('click', () => window.GuixuActionService?.showSaveLoadManager?.());
-      $('#btn-settings')?.addEventListener('click', () => window.SettingsComponent?.show?.());
+      $('#btn-settings')?.addEventListener('click', () => { 
+        window.SettingsComponent?.show?.(); 
+        setTimeout(() => { 
+          this._fixSettingsResolutionRowLayout(); 
+          this._ensureResolutionInputsUsable(); 
+        }, 0); 
+      });
       $('#btn-view-statuses')?.addEventListener('click', () => window.StatusesComponent?.show?.());
       // 新增：创建底部“状态一览”弹窗按钮（替代滚动条）
       this.ensureStatusPopupButton();
@@ -394,6 +408,9 @@
           try { localStorage.setItem('guixu_force_view', 'mobile'); } catch(_) {}
           this._ensureMobileFABs();
           this._ensureFABsVisibleInFullscreen();
+          this._restoreFabPositions();
+          requestAnimationFrame(() => this._restoreFabPositions());
+          setTimeout(() => this._restoreFabPositions(), 150);
         } else {
           // 显式切到桌面端：移除移动端类并加上强制桌面类（覆盖小屏CSS兜底）
           root.classList.remove('mobile-view', 'show-character-panel', 'show-interaction-panel');
@@ -443,6 +460,133 @@
       }
     },
 
+        // 针对移动端FAB：根据全屏/非全屏区分位置持久化键
+    _getFabStorageKey(id) {
+      try {
+        const mode = document.fullscreenElement ? 'full' : 'window';
+        return `guixu_fab_pos_${id}_${mode}`;
+      } catch (_) {
+        return `guixu_fab_pos_${id}`;
+      }
+    },
+
+    // 读取FAB保存（兼容旧版未带模式后缀的key）
+    _readFabSavedState(id) {
+      try {
+        const key = this._getFabStorageKey(id);
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch(_) { saved = null; }
+        if (saved) return saved;
+        const legacyKey = `guixu_fab_pos_${id}`;
+        try { saved = JSON.parse(localStorage.getItem(legacyKey) || 'null'); } catch(_) { saved = null; }
+        return saved || null;
+      } catch(_) { return null; }
+    },
+
+    // 从本地存储恢复 FAB 位置（区分全屏/窗口）
+    _restoreFabPositions() {
+      try {
+        ['fab-character', 'fab-functions', 'fab-settings'].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          const saved = this._readFabSavedState(id);
+          if (saved && (typeof saved.left === 'number' || typeof saved.leftPct === 'number')) {
+            const vw = window.innerWidth || 1;
+            const vh = window.innerHeight || 1;
+            const r = el.getBoundingClientRect();
+            const w = r.width || 56;
+            const h = r.height || 56;
+            let left = typeof saved.left === 'number' ? saved.left : 0;
+            let top = typeof saved.top === 'number' ? saved.top : 0;
+            // 若窗口尺寸变化较大，优先按比例恢复
+            if (typeof saved.leftPct === 'number' && saved.vw && Math.abs((saved.vw|0) - (vw|0)) > 8) {
+              left = Math.round(saved.leftPct * Math.max(0, vw - w));
+            }
+            if (typeof saved.topPct === 'number' && saved.vh && Math.abs((saved.vh|0) - (vh|0)) > 8) {
+              top = Math.round(saved.topPct * Math.max(0, vh - h));
+            }
+            el.style.left = `${left}px`;
+            el.style.top = `${top}px`;
+            el.style.right = 'auto';
+            this._clampFabWithinViewport(el);
+          }
+        });
+      } catch (_) {}
+    },
+
+    // 修复：移动端设置中心“分辨率-自定义”一行的布局（宽、高与提示在同一行）
+    _fixSettingsResolutionRowLayout() {
+      try {
+        const root = document.querySelector('.guixu-root-container');
+        const viewport = this._getViewportEl();
+        const isMobile = !!(root && (root.classList.contains('mobile-view') || viewport?.classList?.contains('mobile-view')));
+        const w = document.getElementById('pref-ui-res-width');
+        const h = document.getElementById('pref-ui-res-height');
+        if (!w || !h) return;
+        const row = w.closest('.attribute-item');
+        if (!row) return;
+
+        if (isMobile) {
+          // 在移动端允许换行，但保证两个输入框并排；提示挪到下一行，避免挤压导致看不见或无法点击
+          row.style.setProperty('flex-wrap', 'wrap', 'important');
+          row.style.alignItems = 'center';
+          row.style.gap = '6px';
+          // 恢复输入框宽度，由移动端CSS控制为两列自适应
+          w.style.removeProperty('width');
+          h.style.removeProperty('width');
+          // 将“（选择‘自定义’后可用）”提示放到下一行并允许换行
+          const tips = Array.from(row.querySelectorAll('.attribute-name')).find(el => (el.textContent || '').includes('自定义') === false);
+          const tip2 = Array.from(row.querySelectorAll('.attribute-name')).find(el => /（.*自定义.*）/.test(el.textContent || ''));
+          const tip = tip2 || tips;
+          if (tip) {
+            tip.style.whiteSpace = 'normal';
+            tip.style.flex = '1 1 100%';
+            tip.style.fontSize = '11px';
+            tip.style.marginTop = '4px';
+          }
+        } else {
+          // 桌面端恢复默认
+          row.style.removeProperty('flex-wrap');
+          w.style.width = '';
+          h.style.width = '';
+        }
+
+        // 绑定一次下拉事件，切换为“自定义”时确保输入可编辑
+        try {
+          const presetEl = document.getElementById('pref-ui-res-preset');
+          if (presetEl && !presetEl.dataset.guixuBind) {
+            presetEl.addEventListener('change', () => this._ensureResolutionInputsUsable());
+            presetEl.dataset.guixuBind = '1';
+          }
+          this._ensureResolutionInputsUsable();
+        } catch(_) {}
+      } catch (_) {}
+    },
+
+    // 保证在“自定义”模式下两个输入框可编辑且可见（修复移动端某些浏览器禁用/覆盖问题）
+    _ensureResolutionInputsUsable() {
+      try {
+        const modal = document.getElementById('settings-modal');
+        if (!modal || getComputedStyle(modal).display === 'none') return;
+        const presetEl = document.getElementById('pref-ui-res-preset');
+        const isCustom = String(presetEl?.value || 'keep') === 'custom';
+        const w = document.getElementById('pref-ui-res-width');
+        const h = document.getElementById('pref-ui-res-height');
+        [w, h].forEach(inp => {
+          if (!inp) return;
+          // 解除禁用并增强移动端输入体验
+          inp.disabled = !isCustom ? true : false;
+          inp.readOnly = !isCustom ? true : false;
+          inp.style.pointerEvents = isCustom ? 'auto' : 'none';
+          inp.style.opacity = isCustom ? '1' : '0.6';
+          inp.setAttribute('inputmode', 'numeric');
+          inp.setAttribute('pattern', '[0-9]*');
+          inp.style.color = '#e0dcd1';
+          inp.style.caretColor = '#e0dcd1';
+        });
+      } catch (_) {}
+    },
+
     _ensureMobileFABs() {
       try {
         const root = document.querySelector('.guixu-root-container');
@@ -477,7 +621,7 @@
 
           // 恢复持久化位置
           try {
-            const saved = JSON.parse(localStorage.getItem(`guixu_fab_pos_${id}`) || 'null');
+            const saved = JSON.parse(localStorage.getItem(this._getFabStorageKey(id)) || 'null');
             if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
               btn.style.left = `${saved.left}px`;
               btn.style.top = `${saved.top}px`;
@@ -719,11 +863,20 @@
         const pointerUp = () => {
           dragging = false;
           document.removeEventListener('pointermove', pointerMove);
-          // 持久化保存位置
+          // 持久化保存位置（同时保存相对比例，便于不同窗口尺寸/退出全屏后的还原）
           try {
             const left = getNum(el.style.left);
             const top = getNum(el.style.top);
-            localStorage.setItem(`guixu_fab_pos_${el.id}`, JSON.stringify({ left, top }));
+            const vw = window.innerWidth || 1;
+            const vh = window.innerHeight || 1;
+            const r = el.getBoundingClientRect();
+            const w = r.width || 56;
+            const h = r.height || 56;
+            const leftPct = (vw > w) ? Math.max(0, Math.min(1, left / (vw - w))) : 0;
+            const topPct = (vh > h) ? Math.max(0, Math.min(1, top / (vh - h))) : 0;
+            localStorage.setItem(this._getFabStorageKey(el.id), JSON.stringify({ left, top, vw, vh, leftPct, topPct }));
+            // 兼容旧版key，顺带落一份，避免迁移期丢失
+            localStorage.setItem(`guixu_fab_pos_${el.id}`, JSON.stringify({ left, top, vw, vh, leftPct, topPct }));
           } catch (_) {}
         };
 
@@ -767,7 +920,7 @@
     },
 
     // 新增：移动端主内容固定高度 + 溢出滚动（避免正文根据文字量无限拉伸）
-    _reflowMobileLayout() {
+    _reflowMobileLayout(forceOnEditing = false) {
       try {
         const root = document.querySelector('.guixu-root-container');
         const viewport = this._getViewportEl();
@@ -776,7 +929,7 @@
 
         // 若当前正在编辑底部输入框，跳过本次重排，防止软键盘引发的抖动
         const ae = document.activeElement;
-        if (ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input'))) return;
+        if (ae && (ae.id === 'quick-send-input' || ae.classList?.contains('quick-send-input')) && !forceOnEditing) return;
 
         const isMobile = root.classList.contains('mobile-view') || (viewport && viewport.classList.contains('mobile-view'));
         if (!isMobile) {
