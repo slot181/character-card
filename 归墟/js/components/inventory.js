@@ -45,6 +45,7 @@
       }
       const h = window.GuixuHelpers;
       const state = window.GuixuState.getState();
+      const stonesVal = Number(h.SafeGetValue(stat_data, '灵石', 0)) || 0;
 
       if (!stat_data || Object.keys(stat_data).length === 0) {
         return '<p class="modal-placeholder" style="text-align:center; color:#8b7355; font-size:12px;">背包数据为空。</p>';
@@ -64,6 +65,16 @@
         <div class="inventory-search">
           <input type="text" id="inventory-search-input" placeholder="搜索物品名称或描述…" />
           <button id="inventory-search-clear" class="interaction-btn">清除</button>
+        </div>
+
+        <div class="panel-section">
+          <div class="section-title">货币</div>
+          <div class="attributes-list" style="padding: 6px 10px;">
+            <div class="attribute-item">
+              <span class="attribute-name">灵石</span>
+              <span class="attribute-value" id="inventory-stones">${stonesVal}</span>
+            </div>
+          </div>
         </div>
       `;
 

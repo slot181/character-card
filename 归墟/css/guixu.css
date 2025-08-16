@@ -1164,6 +1164,129 @@
   color: #a09c91;
 }
 
+/* --- 人物关系：关系类型配色与操作按钮 --- */
+.relationship-card[data-relationship="ENEMY"],
+.relationship-card--ENEMY {
+  border-color: rgba(255,107,107,0.6) !important;
+  background: rgba(255,107,107,0.08) !important;
+}
+.relationship-card[data-relationship="ALLY"],
+.relationship-card--ALLY {
+  border-color: rgba(60,179,113,0.6) !important;
+  background: rgba(60,179,113,0.08) !important;
+}
+.relationship-card[data-relationship="NEUTRAL"],
+.relationship-card--NEUTRAL {
+  border-color: rgba(160,156,145,0.6) !important;
+  background: rgba(160,156,145,0.08) !important;
+}
+.relationship-card[data-relationship="FRIEND"],
+.relationship-card--FRIEND {
+  border-color: rgba(218,165,32,0.6) !important;
+  background: rgba(218,165,32,0.08) !important;
+}
+.relationship-card[data-relationship="LOVER"],
+.relationship-card--LOVER {
+  border-color: rgba(147,112,219,0.6) !important;
+  background: rgba(147,112,219,0.08) !important;
+}
+
+/* 顶部右上角操作区 */
+.relationship-header .rel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.rel-actions .btn-detail,
+.rel-actions .btn-trade {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #c9aa71;
+  background: linear-gradient(45deg, #1a1a2e, #2d1b3d);
+  color: #c9aa71;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.rel-actions .btn-detail.primary,
+.rel-actions .btn-trade.primary {
+  background: linear-gradient(45deg, #8b4513, #cd853f);
+  border-color: #daa520;
+  color: #fff;
+}
+.rel-actions .btn-detail[disabled],
+.rel-actions .btn-trade[disabled],
+.rel-actions .btn-detail.is-disabled,
+.rel-actions .btn-trade.is-disabled {
+  opacity: 0.5;
+  filter: grayscale(0.5);
+  cursor: not-allowed;
+}
+
+/* 交易面板内的布局 */
+#trade-modal .trade-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+#trade-modal .inventory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+#trade-modal .trade-section {
+  border: 1px solid rgba(201,170,113,0.3);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(0,0,0,0.2);
+}
+#trade-modal .trade-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed rgba(201,170,113,0.2);
+}
+#trade-modal .trade-item:last-child {
+  border-bottom: none;
+}
+#trade-modal .trade-item .item-name {
+  color: #e0dcd1;
+}
+#trade-modal .trade-item .item-meta {
+  color: #8b7355;
+  font-size: 12px;
+  white-space: nowrap;
+}
+#trade-modal .btn-purchase-item,
+#trade-modal .btn-sell-item {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #daa520;
+  border-radius: 4px;
+  background: linear-gradient(45deg, #8b4513, #cd853f);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* 角色详情面板内的列表紧凑化 */
+#character-details-modal .detail-group {
+  margin-bottom: 12px;
+}
+#character-details-modal .kv-list {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: #a09c91;
+}
+
 /* --- 新增：本世历程详细信息样式 --- */
 .detail-section {
   margin-bottom: 10px;
@@ -2281,3 +2404,4 @@
 .guixu-root-container.force-desktop #fab-functions {
   display: none !important;
 }
+
