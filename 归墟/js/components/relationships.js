@@ -618,17 +618,37 @@
                 return;
               }
 
-              // 出价输入（默认基础价值）
+              // 数量选择（如果库存大于1）
+              const maxQuantity = Number(window.GuixuHelpers.SafeGetValue(item, 'quantity', 1)) || 1;
+              let purchaseQuantity = 1;
+              if (maxQuantity > 1) {
+                purchaseQuantity = await (window.GuixuMain?.showNumberPrompt
+                  ? window.GuixuMain.showNumberPrompt({
+                      title: '选择购买数量',
+                      message: `【${window.GuixuHelpers.SafeGetValue(item, 'name', '未知物品')}】库存：${maxQuantity}，请选择购买数量`,
+                      min: 1,
+                      max: maxQuantity,
+                      defaultValue: 1,
+                    })
+                  : Promise.resolve(parseInt(prompt(`请输入购买数量（库存：${maxQuantity}）`, '1') || '1', 10)));
+                if (!Number.isFinite(purchaseQuantity) || purchaseQuantity <= 0 || purchaseQuantity > maxQuantity) {
+                  window.GuixuHelpers.showTemporaryMessage('已取消或无效的数量');
+                  return;
+                }
+              }
+
+              // 出价输入（基础价值 x 数量）
               const baseVal = Number(window.GuixuHelpers.SafeGetValue(item, 'base_value', 0)) || 0;
+              const totalBaseVal = baseVal * purchaseQuantity;
               const offer = await (window.GuixuMain?.showNumberPrompt
                 ? window.GuixuMain.showNumberPrompt({
                     title: '出价（灵石）',
-                    message: `为【${window.GuixuHelpers.SafeGetValue(item, 'name', '未知物品')}】出价（基础价值：${baseVal} 灵石）`,
+                    message: `为【${window.GuixuHelpers.SafeGetValue(item, 'name', '未知物品')} x${purchaseQuantity}】出价（基础价值：${totalBaseVal} 灵石）`,
                     min: 1,
                     max: 999999,
-                    defaultValue: Math.max(1, baseVal || 1),
+                    defaultValue: Math.max(1, totalBaseVal || 1),
                   })
-                : Promise.resolve(parseInt(prompt(`请输入出价（基础价值：${baseVal}）`, String(baseVal || 1)) || '0', 10)));
+                : Promise.resolve(parseInt(prompt(`请输入总出价（基础价值：${totalBaseVal}，数量：${purchaseQuantity}）`, String(totalBaseVal || 1)) || '0', 10)));
               if (!Number.isFinite(offer) || offer <= 0) {
                 window.GuixuHelpers.showTemporaryMessage('已取消或无效的出价');
                 return;
@@ -643,17 +663,22 @@
                 return;
               }
 
-              // 成交逻辑（主要看出价是否达到阈值，辅以好感度微调）
-              const success = RelationshipsComponent._computeTradeSuccess(offer, baseVal, favorability);
+              // 修复：传入批量购买的总基础价值进行价格合理性判断
+              const success = RelationshipsComponent._computeTradeSuccess(offer, totalBaseVal, favorability);
               if (!success) {
                 window.GuixuHelpers.showTemporaryMessage('对方摇头婉拒，或许提高出价/好感度再试。');
                 return;
               }
 
               try {
-                await RelationshipsComponent._applyTradeTransaction(rel, item, offer);
+                await RelationshipsComponent._applyTradeTransaction(rel, item, offer, purchaseQuantity);
                 window.GuixuHelpers.showTemporaryMessage('交易成功！物品已入账');
-                RelationshipsComponent.openTradePanel(rel);
+                
+                // 实时刷新相关界面
+                await RelationshipsComponent._refreshAllRelatedUI();
+                
+                // 重新打开交易面板显示最新数据
+                await RelationshipsComponent.openTradePanel(rel);
               } catch (err) {
                 console.error('[归墟] 交易落账失败：', err);
                 window.GuixuHelpers.showTemporaryMessage('交易失败：保存数据出错');
@@ -665,6 +690,10 @@
             const btnSell = ev.target.closest('.btn-sell-item');
             if (btnSell) {
               const itemId = btnSell.dataset.itemId;
+              // 重新获取最新数据，避免使用缓存的旧数据
+              const messagesLatest = await window.GuixuAPI.getChatMessages(window.GuixuAPI.getCurrentMessageId());
+              const latestStatData = (messagesLatest?.[0]?.data?.stat_data) || {};
+              
               // 从玩家背包合并清单中查找（与渲染列表保持一致）
               // 改进：查找玩家物品时同时返回原数组索引与原始条目，避免后续写回时找不到对应位置
               const findUserItemById = () => {
@@ -676,7 +705,7 @@
                 const needle = normalize(itemId);
                 try {
                   for (const k of lists) {
-                    const arr = (stat_data?.[k]?.[0]) || [];
+                    const arr = (latestStatData?.[k]?.[0]) || [];
                     if (Array.isArray(arr)) {
                       for (let i = 0; i < arr.length; i++) {
                         const raw = arr[i];
@@ -767,20 +796,44 @@
                 return;
               }
 
+              // 数量选择（如果物品数量大于1）
+              const itemQuantity = Number(window.GuixuHelpers.SafeGetValue(item, 'quantity', 1)) || 1;
+              let sellQuantity = 1;
+              if (itemQuantity > 1) {
+                sellQuantity = await (window.GuixuMain?.showNumberPrompt
+                  ? window.GuixuMain.showNumberPrompt({
+                      title: '选择出售数量',
+                      message: `【${window.GuixuHelpers.SafeGetValue(item, 'name', '未知物品')}】拥有：${itemQuantity}，请选择出售数量`,
+                      min: 1,
+                      max: itemQuantity,
+                      defaultValue: 1,
+                    })
+                  : Promise.resolve(parseInt(prompt(`请输入出售数量（拥有：${itemQuantity}）`, '1') || '1', 10)));
+                if (!Number.isFinite(sellQuantity) || sellQuantity <= 0 || sellQuantity > itemQuantity) {
+                  window.GuixuHelpers.showTemporaryMessage('已取消或无效的数量');
+                  return;
+                }
+              }
+
+              // 出价输入（基础价值 x 数量）
               const baseVal = Number(window.GuixuHelpers.SafeGetValue(item, 'base_value', 0)) || 0;
+              const totalBaseVal = baseVal * sellQuantity;
               const offer = await (window.GuixuMain?.showNumberPrompt
                 ? window.GuixuMain.showNumberPrompt({
                     title: '出售价格（灵石）',
-                    message: `为【${window.GuixuHelpers.SafeGetValue(item, 'name', '未知物品')}】标价（基础价值：${baseVal} 灵石）`,
+                    message: `为【${window.GuixuHelpers.SafeGetValue(item, 'name', '未知物品')} x${sellQuantity}】标价（基础价值：${totalBaseVal} 灵石）`,
                     min: 1,
                     max: 999999,
-                    defaultValue: Math.max(1, baseVal || 1),
+                    defaultValue: Math.max(1, totalBaseVal || 1),
                   })
-                : Promise.resolve(parseInt(prompt(`请输入出售价格（基础价值：${baseVal}）`, String(baseVal || 1)) || '0', 10)));
+                : Promise.resolve(parseInt(prompt(`请输入总标价（基础价值：${totalBaseVal}，数量：${sellQuantity}）`, String(totalBaseVal || 1)) || '0', 10)));
               if (!Number.isFinite(offer) || offer <= 0) {
                 window.GuixuHelpers.showTemporaryMessage('已取消或无效的标价');
                 return;
               }
+
+              // 将出售数量添加到物品对象中，供后续处理使用
+              item.sellQuantity = sellQuantity;
 
               // NPC 余额校验 + 成交逻辑（标价需不高于 NPC 可接受最高价，且 NPC 灵石足够）
               // 读取最新 NPC 灵石（避免使用旧的 rel 值）
@@ -796,7 +849,8 @@
                 window.GuixuHelpers.showTemporaryMessage('对方灵石不足，无法成交');
                 return;
               }
-              const ok = RelationshipsComponent._computeSellSuccess(offer, baseVal, favorability);
+              // 修复：传入批量出售的总基础价值进行价格合理性判断
+              const ok = RelationshipsComponent._computeSellSuccess(offer, totalBaseVal, favorability);
               if (!ok) {
                 window.GuixuHelpers.showTemporaryMessage('对方摇头婉拒，或许降低价格/提高好感度再试。');
                 return;
@@ -805,7 +859,12 @@
               try {
                 await RelationshipsComponent._applySellTransaction(rel, item, offer);
                 window.GuixuHelpers.showTemporaryMessage('出售成功！灵石已入账');
-                RelationshipsComponent.openTradePanel(rel);
+                
+                // 实时刷新相关界面
+                await RelationshipsComponent._refreshAllRelatedUI();
+                
+                // 重新打开交易面板显示最新数据
+                await RelationshipsComponent.openTradePanel(rel);
               } catch (err) {
                 console.error('[归墟] 出售落账失败：', err);
                 window.GuixuHelpers.showTemporaryMessage('出售失败：保存数据出错');
@@ -1027,13 +1086,14 @@
 
       if (uIdx === -1) throw new Error('玩家物品不存在');
 
-      // 解析条目，按原始类型写回
+      // 解析条目，按原始类型写回，并处理批量出售数量
       let parsedEntry = {};
       try { parsedEntry = typeof originalEntry === 'string' ? JSON.parse(originalEntry) : originalEntry; } catch { parsedEntry = {}; }
       const sellQ = Number(h.SafeGetValue(parsedEntry, 'quantity', 1)) || 1;
+      const sellQuantity = Number(h.SafeGetValue(item, 'sellQuantity', 1)) || 1;
 
-      if (sellQ > 1) {
-        parsedEntry.quantity = sellQ - 1;
+      if (sellQ > sellQuantity) {
+        parsedEntry.quantity = sellQ - sellQuantity;
         userArr[uIdx] = (typeof originalEntry === 'string') ? JSON.stringify(parsedEntry) : parsedEntry;
       } else {
         userArr.splice(uIdx, 1);
@@ -1065,24 +1125,26 @@
       } catch (e) { /* ignore */ }
 
       if (nIdx !== -1) {
-        // 找到：在原始格式上叠加数量
+        // 找到：在原始格式上叠加数量（根据实际出售数量）
         const originalNpcEntry = npcItems[nIdx];
         try {
           const parsedOld = typeof originalNpcEntry === 'string' ? JSON.parse(originalNpcEntry) : originalNpcEntry;
           const oldQ = Number(h.SafeGetValue(parsedOld, 'quantity', 1)) || 1;
-          parsedOld.quantity = oldQ + 1;
+          parsedOld.quantity = oldQ + sellQuantity;
           npcItems[nIdx] = (typeof originalNpcEntry === 'string') ? JSON.stringify(parsedOld) : parsedOld;
         } catch (e) {
           // 退回：直接在对象上操作（若解析失败）
           if (typeof npcItems[nIdx] === 'object' && npcItems[nIdx] !== null) {
-            npcItems[nIdx].quantity = (Number(h.SafeGetValue(npcItems[nIdx], 'quantity', 1)) || 1) + 1;
+            npcItems[nIdx].quantity = (Number(h.SafeGetValue(npcItems[nIdx], 'quantity', 1)) || 1) + sellQuantity;
           }
         }
       } else {
-        // 没找到：添加新物品（按对象形式添加）
+        // 没找到：添加新物品（按对象形式添加，设置为出售的数量）
         const pushItem = JSON.parse(JSON.stringify(item));
-        delete pushItem.quantity;
-        pushItem.quantity = 1;
+        // 清理可能存在的临时字段
+        delete pushItem.sellQuantity;
+        delete pushItem.__userRef;
+        pushItem.quantity = sellQuantity;
 
         const metaExtensible = '$__META_EXTENSIBLE__$';
         const metaIdx = npcItems.indexOf(metaExtensible);
@@ -1225,6 +1287,34 @@
       }
     },
 
+    // 实时刷新所有相关UI界面
+    async _refreshAllRelatedUI() {
+      try {
+        // 刷新主界面数据（装备、属性等）
+        if (window.GuixuMain?.updateDynamicData) {
+          window.GuixuMain.updateDynamicData();
+        }
+        
+        // 刷新背包界面（如果已打开）
+        const inventoryModal = document.getElementById('inventory-modal');
+        if (inventoryModal && inventoryModal.style.display !== 'none' && inventoryModal.classList.contains('show')) {
+          if (window.InventoryComponent?.show) {
+            setTimeout(() => window.InventoryComponent.show(), 100);
+          }
+        }
+        
+        // 刷新人物关系界面本身（如果已打开）
+        const relationshipsModal = document.getElementById('relationships-modal');
+        if (relationshipsModal && relationshipsModal.style.display !== 'none' && relationshipsModal.classList.contains('show')) {
+          setTimeout(() => this.show(), 100);
+        }
+        
+        console.log('[归墟] 已刷新所有相关UI界面');
+      } catch (error) {
+        console.error('[归墟] 刷新UI界面时出错:', error);
+      }
+    },
+
     // 批量修复NPC物品的type字段
     async _fixNpcInventoryTypes() {
       try {
@@ -1325,7 +1415,7 @@
     },
 
     // 将交易结果写回 MVU：扣除玩家灵石、移除/减少对方物品、将物品加入玩家对应分类，并增加对方灵石
-    async _applyTradeTransaction(rel, item, offer) {
+    async _applyTradeTransaction(rel, item, offer, purchaseQuantity = 1) {
       const _ = window.GuixuAPI?.lodash || window._ || {
         get: (obj, path, def) => {
           try {
@@ -1481,13 +1571,13 @@
         let parsedEntry;
         try { parsedEntry = typeof originalEntry === 'string' ? JSON.parse(originalEntry) : originalEntry; } catch { parsedEntry = {}; }
         const oldQ = Number(h.SafeGetValue(parsedEntry, 'quantity', 1)) || 1;
-        parsedEntry.quantity = oldQ + 1;
+        parsedEntry.quantity = oldQ + purchaseQuantity;
         // 写回时保持原格式
         arr[existIdx] = (typeof originalEntry === 'string') ? JSON.stringify(parsedEntry) : parsedEntry;
       } else {
         // 添加新物品
         delete bought.quantity;
-        bought.quantity = 1;
+        bought.quantity = purchaseQuantity;
         arr.push(bought);
       }
       _.set(stat_data, userListPath, arr);
